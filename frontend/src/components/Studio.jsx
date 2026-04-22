@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { 
-  Mic, Upload, ChevronRight, Zap, RefreshCw, AudioWaveform as WaveformIcon, Activity, Play, Pause, Download
+  Mic, Upload, ChevronRight, RefreshCw, AudioWaveform as WaveformIcon, Activity, Play, Pause, Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -149,10 +149,13 @@ export default function Studio({
             Craft the <span className="text-primary/60 italic">ethereal echo</span> of any voice with machine precision.
           </p>
         </div>
-        <div className="flex gap-4">
-          <button className="p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-all hover:scale-110 active:scale-95"><RefreshCw size={22} className="text-white/40" /></button>
-          <button className="p-4 bg-primary/10 rounded-2xl border border-primary/20 hover:bg-primary/20 transition-all hover:scale-110 active:scale-95 shadow-[0_0_30px_rgba(186,158,255,0.1)]"><Zap size={22} className="text-primary" /></button>
-        </div>
+        <button 
+          onClick={() => { setReferenceId(null); setTranscript(''); setInputText(''); }}
+          title="Clear session"
+          className="p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-all hover:scale-110 active:scale-95 group"
+        >
+          <RefreshCw size={22} className="text-white/30 group-hover:text-white/70 transition-colors" />
+        </button>
       </header>
 
       <section className="space-y-12 max-w-5xl">

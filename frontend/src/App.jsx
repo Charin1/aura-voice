@@ -123,7 +123,12 @@ export default function App() {
             />
         );
       case 'Library':
-        return <Library history={history} />;
+        return <Library 
+          setReferenceId={setReferenceId}
+          setTranscript={setTranscript}
+          setReferenceUrl={setReferenceUrl}
+          onGoToStudio={() => setActiveTab('Studio')}
+        />;
       case 'Analytics':
         return <Analytics stats={stats} />;
       case 'Settings':
@@ -141,10 +146,10 @@ export default function App() {
       {/* SIDEBAR */}
       <aside className="w-72 glass flex flex-col p-8 z-20">
         <div className="flex items-center gap-4 mb-12">
-          <div className="w-10 h-10 bg-gradient-to-tr from-primary to-secondary rounded-xl shadow-[0_0_20px_rgba(186,158,255,0.3)] flex items-center justify-center">
-            <Volume2 size={24} className="text-black" />
+          <div className="w-12 h-12 flex items-center justify-center bg-black/20 rounded-2xl p-1 shadow-[0_0_20px_rgba(186,158,255,0.2)] border border-white/5">
+            <img src="/logo.png" alt="Aura Voice Logo" className="w-full h-full object-contain filter brightness-110" />
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight font-headline italic">AURA</h1>
+          <h1 className="text-xl font-black tracking-tighter font-headline italic bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">AURA VOICE</h1>
         </div>
 
         <nav className="flex-1 space-y-3">
