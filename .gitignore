@@ -167,6 +167,7 @@ backend/temp/
 backend/output/
 backend/references/
 backend/weights/
+backend/library_metadata.json
 backend/.uv_cache/
 backend/.uv_python/
 backend/models/*.pth

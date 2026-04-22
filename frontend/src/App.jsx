@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Settings as SettingsIcon, Library as LibraryIcon, 
-  LayoutDashboard, FlaskConical, Activity,
-  Volume2, LogOut
+  FlaskConical, Activity,
+  Volume2
 } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Components
-import Dashboard from './components/Dashboard';
+
 import Studio from './components/Studio';
 import Library from './components/Library';
 import Settings from './components/Settings';
@@ -17,7 +17,7 @@ import Analytics from './components/Analytics';
 const API_BASE = "http://localhost:8000";
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('Dashboard');
+  const [activeTab, setActiveTab] = useState('Studio');
   const [activeModel, setActiveModel] = useState('xtts');
   const [inputText, setInputText] = useState('');
   const [referenceId, setReferenceId] = useState(null);
@@ -93,7 +93,6 @@ export default function App() {
   };
 
   const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard' },
     { icon: FlaskConical, label: 'Studio' },
     { icon: LibraryIcon, label: 'Library' },
     { icon: Activity, label: 'Analytics' },
@@ -102,8 +101,6 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'Dashboard':
-        return <Dashboard stats={stats} />;
       case 'Studio':
         return (
             <Studio 
@@ -134,7 +131,23 @@ export default function App() {
       case 'Settings':
         return <Settings stats={stats} />;
       default:
-        return <Dashboard stats={stats} />;
+        return (
+            <Studio 
+              inputText={inputText}
+              setInputText={setInputText}
+              referenceId={referenceId}
+              setReferenceId={setReferenceId}
+              referenceUrl={referenceUrl}
+              setReferenceUrl={setReferenceUrl}
+              transcript={transcript}
+              setTranscript={setTranscript}
+              isGenerating={isGenerating}
+              isUploading={isUploading}
+              handleFileUpload={handleFileUpload}
+              handleSynthesize={handleSynthesize}
+              history={history}
+            />
+        );
     }
   };
 
@@ -168,52 +181,45 @@ export default function App() {
         </nav>
 
         {/* MODEL SELECTOR (ONLY SHOW IN STUDIO) */}
-        {activeTab === 'Studio' && (
-            <div className="mt-auto pt-8 border-t border-white/5">
-                <div className="bg-black/30 rounded-3xl p-5 space-y-5">
-                    <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]">Engine</span>
-                    <div className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest ${stats.mps_available ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'}`}>
-                        {stats.mps_available ? 'MPS ACTIVE' : 'CPU MODE'}
-                    </div>
-                    </div>
-                    
-                    <div className="flex bg-black/40 p-1.5 rounded-2xl relative">
-                    <motion.div 
-                        layoutId="modelToggle"
-                        className="absolute inset-y-1.5 bg-white/5 rounded-xl shadow-inner border border-white/5"
-                        initial={false}
-                        animate={{ x: activeModel === 'xtts' ? 0 : '100%' }}
-                        transition={{ type: 'spring', stiffness: 350, damping: 35 }}
-                        style={{ width: 'calc(50% - 6px)' }}
-                    />
-                    <button onClick={() => setActiveModel('xtts')} className={`relative z-10 flex-1 py-2 text-xs font-bold transition-colors ${activeModel === 'xtts' ? 'text-white' : 'text-white/20'}`}>XTTS-v2</button>
-                    <button onClick={() => setActiveModel('f5')} className={`relative z-10 flex-1 py-2 text-xs font-bold transition-colors ${activeModel === 'f5' ? 'text-white' : 'text-white/20'}`}>F5-MLX</button>
-                    </div>
+        <div className="mt-auto pt-8 border-t border-white/5">
+            <div className="bg-black/30 rounded-3xl p-5 space-y-5">
+                <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]">Engine</span>
+                <div className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest ${stats.mps_available ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'}`}>
+                    {stats.mps_available ? 'MPS ACTIVE' : 'CPU MODE'}
+                </div>
+                </div>
+                
+                <div className="flex bg-black/40 p-1.5 rounded-2xl relative">
+                <motion.div 
+                    layoutId="modelToggle"
+                    className="absolute inset-y-1.5 bg-white/5 rounded-xl shadow-inner border border-white/5"
+                    initial={false}
+                    animate={{ x: activeModel === 'xtts' ? 0 : '100%' }}
+                    transition={{ type: 'spring', stiffness: 350, damping: 35 }}
+                    style={{ width: 'calc(50% - 6px)' }}
+                />
+                <button onClick={() => setActiveModel('xtts')} className={`relative z-10 flex-1 py-2 text-xs font-bold transition-colors ${activeModel === 'xtts' ? 'text-white' : 'text-white/20'}`}>XTTS-v2</button>
+                <button onClick={() => setActiveModel('f5')} className={`relative z-10 flex-1 py-2 text-xs font-bold transition-colors ${activeModel === 'f5' ? 'text-white' : 'text-white/20'}`}>F5-MLX</button>
+                </div>
 
-                    <div className="space-y-3">
-                    <div className="flex justify-between text-[10px] font-medium uppercase tracking-wider">
-                        <span className="text-white/20">Unified Memory</span>
-                        <span className="text-white/40">4.2GB / 16GB</span>
-                    </div>
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: '26%' }}
-                        className="h-full bg-gradient-to-r from-primary to-secondary shadow-[0_0_10px_rgba(186,158,255,0.5)]" 
-                        />
-                    </div>
-                    </div>
+                <div className="space-y-3">
+                <div className="flex justify-between text-[10px] font-medium uppercase tracking-wider">
+                    <span className="text-white/20">Unified Memory</span>
+                    <span className="text-white/40">{stats.simulated_hardware?.memory_load || 26}% used</span>
+                </div>
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${stats.simulated_hardware?.memory_load || 26}%` }}
+                    className="h-full bg-gradient-to-r from-primary to-secondary shadow-[0_0_10px_rgba(186,158,255,0.5)]" 
+                    />
+                </div>
                 </div>
             </div>
-        )}
-
-        <div className={`mt-auto ${activeTab === 'Studio' ? 'pt-6' : 'pt-0'}`}>
-             <button className="flex items-center gap-4 w-full px-5 py-4 rounded-2xl text-red-500/40 hover:bg-red-500/10 hover:text-red-500 transition-all">
-                <LogOut size={20} />
-                <span className="text-sm font-bold tracking-tight uppercase">Sign Out</span>
-             </button>
         </div>
+
+
       </aside>
 
       {/* MAIN CONTENT */}

@@ -16,9 +16,10 @@ Aura Voice is designed to be a high-performance, low-latency voice cloning platf
 ### Key Features
 - **Zero-Shot Voice Cloning**: Clone voices using just 6-10 seconds of reference audio.
 - **Dual Model Support**: Choose between **Coqui XTTS-v2** and **F5-TTS** (MLX Optimized).
-- **Mac M4 Optimization**: Full support for **Metal Performance Shaders (MPS)** and **MLX** for blazing-fast inference on Apple Silicon.
-- **Real-time Preview**: Integrated waveform visualization using Wavesurfer.js.
-- **Memory Management**: Intelligent model switching and memory clearing to optimize unified memory usage.
+- **Voice Hub (Library)**: Manage your cloned voices and generated samples with a persistent master-detail interface.
+- **Analytics Dashboard**: Real-time telemetry on model affinity, hardware utilization, and library growth.
+- **Mac M4 Optimization**: Full support for **Metal Performance Shaders (MPS)** and **MLX** for blazing-fast inference.
+- **Memory Management**: Intelligent model switching and automatic MPS cache clearing.
 
 ---
 
@@ -28,8 +29,9 @@ Aura Voice is designed to be a high-performance, low-latency voice cloning platf
 | :--- | :--- |
 | **Frontend** | React (Vite), Tailwind CSS, Framer Motion, Lucide Icons |
 | **Backend** | FastAPI, Uvicorn, Python 3.10+ |
+| **Database** | Metadata Persistence (`library_metadata.json`) |
 | **Inference** | PyTorch (MPS), MLX Framework |
-| **Models** | Coqui XTTS-v2, F5-TTS |
+| **Models** | Coqui XTTS-v2, F5-TTS, OpenAI Whisper (Transcriptions) |
 | **Audio** | FFmpeg, Pydub, Wavesurfer.js |
 
 ---
@@ -98,16 +100,17 @@ The application will be available at `http://localhost:5173`.
 
 ```text
 aura-voice/
-├── backend/            # FastAPI Backend
-│   ├── main.py         # Entry point & API routes
-│   ├── models/         # Model weights & management
-│   ├── utils/          # Audio processing & ML helpers
-│   └── temp/           # Transient audio storage
-├── frontend/           # React Frontend (Vite)
-│   ├── src/            # Application components & hooks
-│   └── public/         # Static assets
-├── setup.sh            # Automated setup script
-└── plan.md             # Architecture & implementation blueprint
+├── backend/                # FastAPI Backend
+│   ├── main.py             # Entry point, API routes & Migration logic
+│   ├── models/             # Model weights & singleton manager
+│   ├── references/         # Persistent voice profiles
+│   ├── output/             # Generated audio samples
+│   └── library_metadata.json # Source of truth for relationships
+├── frontend/               # React Frontend (Vite)
+│   ├── src/                # Components (Studio, Library, Analytics)
+│   └── public/             # Branding assets
+├── setup.sh                # Automated setup script
+└── start.sh                # Unified dev server launcher
 ```
 
 ---

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
-  Settings as SettingsIcon, Server, Shield, Bell, Cpu, 
-  Trash2, Save, ExternalLink
+  Settings as SettingsIcon, Server, 
+  Trash2, Save
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -10,9 +10,6 @@ export default function Settings({ stats }) {
 
   const navItems = [
     { icon: Server, label: 'Backend Engine' },
-    { icon: Shield, label: 'Privacy & Security' },
-    { icon: Bell, label: 'Notifications' },
-    { icon: Cpu, label: 'Resource Allocation' },
   ];
 
   return (
@@ -26,7 +23,7 @@ export default function Settings({ stats }) {
           Studio Settings
         </motion.h2>
         <p className="text-white/30 text-lg font-medium max-w-2xl leading-relaxed">
-          Configure your local synthesis environment, API preferences, and system security.
+          Configure your local synthesis environment and API preferences.
         </p>
       </header>
 
@@ -101,47 +98,6 @@ export default function Settings({ stats }) {
             </section>
           )}
 
-          {activeSetting === 'Privacy & Security' && (
-            <section className="glass-card !p-10 space-y-8">
-                <div className="space-y-2">
-                    <h3 className="text-xl font-bold font-headline">Privacy & Security</h3>
-                    <p className="text-sm text-white/30 font-medium">Manage your data and security preferences.</p>
-                </div>
-                <div className="text-white/50 text-sm">Privacy settings coming soon...</div>
-            </section>
-          )}
-
-          {activeSetting === 'Notifications' && (
-            <section className="glass-card !p-10 space-y-8">
-                <div className="space-y-2">
-                    <h3 className="text-xl font-bold font-headline">Notifications</h3>
-                    <p className="text-sm text-white/30 font-medium">Configure alert preferences.</p>
-                </div>
-                <div className="text-white/50 text-sm">Notification settings coming soon...</div>
-            </section>
-          )}
-
-          {activeSetting === 'Resource Allocation' && (
-            <section className="glass-card !p-10 space-y-8">
-                <div className="space-y-2">
-                    <h3 className="text-xl font-bold font-headline">Resource Allocation</h3>
-                    <p className="text-sm text-white/30 font-medium">Manage memory and CPU limits.</p>
-                </div>
-                <div className="text-white/50 text-sm">Resource settings coming soon...</div>
-            </section>
-          )}
-
-            <section className="glass-card !p-10 space-y-6 border-orange-500/10">
-                <div className="flex justify-between items-start">
-                    <div className="space-y-2">
-                        <h3 className="text-xl font-bold font-headline text-orange-400/80">Pro Tier Subscription</h3>
-                        <p className="text-sm text-white/30 font-medium">You are currently on the Aura Studio Open-Source license.</p>
-                    </div>
-                    <button className="p-3 bg-orange-500/10 rounded-xl border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-all">
-                        <ExternalLink size={20} />
-                    </button>
-                </div>
-            </section>
         </div>
       </div>
     </div>
