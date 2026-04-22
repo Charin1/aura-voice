@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+python-multipart
+torch
+torchaudio
+coqui-tts
+f5-tts-mlx
+pydub
+numpy<2.0.0
+huggingface_hub
+python-dotenv
+scipy
+librosa
+openai-whisper
+transformers==4.36.2
+torchcodec
