@@ -10,31 +10,53 @@ cleanup() {
     exit 0
 }
 
-# Trap SIGINT and SIGTERM to run the cleanup function
 trap cleanup SIGINT SIGTERM
 
-echo "🚀 Starting backend server..."
-cd backend || exit
-# Source virtual environment if it exists
-if [ -d ".venv" ]; then
-    source .venv/bin/activate
-elif [ -d "venv" ]; then
-    source venv/bin/activate
-fi
-uvicorn main:app --reload --port 8000 &
-BACKEND_PID=$!
-cd ..
+# ──────────────────────────────────────────────
+# Resolve venv Python / uvicorn path
+# Supports both uv (.venv) and standard venv setups
+# ──────────────────────────────────────────────
+BACKEND_DIR="$(pwd)/backend"
 
-echo "⚛️ Starting frontend server..."
-cd frontend || exit
+if [ -f "$BACKEND_DIR/.venv/bin/uvicorn" ]; then
+    UVICORN="$BACKEND_DIR/.venv/bin/uvicorn"
+    PYTHON="$BACKEND_DIR/.venv/bin/python"
+    echo "🐍 Using venv: $BACKEND_DIR/.venv"
+elif [ -f "$BACKEND_DIR/venv/bin/uvicorn" ]; then
+    UVICORN="$BACKEND_DIR/venv/bin/uvicorn"
+    PYTHON="$BACKEND_DIR/venv/bin/python"
+    echo "🐍 Using venv: $BACKEND_DIR/venv"
+else
+    echo "❌ No virtual environment found in backend/.venv or backend/venv"
+    echo "   Run ./setup.sh first to create the environment."
+    exit 1
+fi
+
+# ──────────────────────────────────────────────
+# Backend
+# Using explicit venv uvicorn path — more reliable than
+# `source activate` which doesn't propagate into background processes
+# ──────────────────────────────────────────────
+echo "🚀 Starting backend server..."
+cd "$BACKEND_DIR" || exit 1
+"$UVICORN" main:app --reload --port 8000 &
+BACKEND_PID=$!
+cd - > /dev/null
+
+# ──────────────────────────────────────────────
+# Frontend
+# ──────────────────────────────────────────────
+echo "⚛️  Starting frontend server..."
+cd frontend || exit 1
 npm run dev &
 FRONTEND_PID=$!
-cd ..
+cd - > /dev/null
 
+echo ""
 echo "✅ Both servers are running!"
-echo "📡 Backend: http://localhost:8000"
-echo "🌐 Frontend: http://localhost:5173"
-echo "Press Ctrl+C to stop both servers."
+echo "   📡 Backend:  http://localhost:8000"
+echo "   🌐 Frontend: http://localhost:5173"
+echo "   Press Ctrl+C to stop both servers."
+echo ""
 
-# Wait for background processes to prevent the script from exiting immediately
 wait $BACKEND_PID $FRONTEND_PID

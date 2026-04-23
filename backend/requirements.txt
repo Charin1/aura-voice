@@ -12,5 +12,9 @@ python-dotenv
 scipy
 librosa
 openai-whisper
-transformers==4.36.2
+whisperx
+# transformers 4.44.2 is the sweet spot:
+#   - whisperx requires >=4.39.0
+#   - coqui-tts (XTTS) requires BeamSearchScorer, removed in 4.45+
+transformers==4.44.2
 torchcodec

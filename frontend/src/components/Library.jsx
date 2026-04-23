@@ -1,7 +1,8 @@
 import React from 'react';
 import { 
   Library as LibraryIcon, Play, Pause, Download, Trash2,
-  AudioWaveform as Waveform, User, ChevronRight, MessageSquare, Mic2
+  AudioWaveform as Waveform, User, ChevronRight, MessageSquare, Mic2,
+  Sparkles, RefreshCw, CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -12,6 +13,7 @@ export default function Library({ setReferenceId, setTranscript, setReferenceUrl
   const [profiles, setProfiles] = React.useState([]);
   const [selectedProfileId, setSelectedProfileId] = React.useState(null);
   const [playingId, setPlayingId] = React.useState(null);
+  const [reprocessingId, setReprocessingId] = React.useState(null);
   const audioRef = React.useRef(null);
 
   const fetchProfiles = async () => {
@@ -65,6 +67,20 @@ export default function Library({ setReferenceId, setTranscript, setReferenceUrl
       await fetchProfiles();
     } catch (err) {
       console.error('Failed to delete generation', err);
+    }
+  };
+
+  const reprocessReference = async (e, refId) => {
+    e.stopPropagation();
+    setReprocessingId(refId);
+    try {
+      await axios.post(`${API_BASE}/reprocess-reference/${refId}`);
+      await fetchProfiles();
+    } catch (err) {
+      console.error('Failed to reprocess reference', err);
+      alert('Reprocessing failed. Check backend logs for details.');
+    } finally {
+      setReprocessingId(null);
     }
   };
 
@@ -129,23 +145,56 @@ export default function Library({ setReferenceId, setTranscript, setReferenceUrl
                     <Trash2 size={16} />
                   </button>
                 </div>
+
+                {/* Alignment badge row */}
+                <div className="flex items-center gap-2 mb-3">
+                  {profile.alignment_available ? (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[9px] font-black uppercase tracking-widest">
+                      <CheckCircle2 size={10} /> Aligned
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400/70 text-[9px] font-black uppercase tracking-widest">
+                      Legacy
+                    </span>
+                  )}
+                  {profile.chunk_count > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/30 text-[9px] font-black uppercase tracking-widest">
+                      {profile.chunk_count} chunk{profile.chunk_count !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
                 <p className="text-sm font-medium text-white/80 line-clamp-2 italic leading-relaxed mb-4">
                   "{profile.transcript || 'Unknown Reference'}"
                 </p>
-                {profile.url && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setReferenceId(profile.id);
-                      setTranscript(profile.transcript || '');
-                      setReferenceUrl(null); // URL will be fetched from server
-                      onGoToStudio();
-                    }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all"
-                  >
-                    <Mic2 size={14} /> Use in Studio
-                  </button>
-                )}
+
+                <div className="flex gap-2">
+                  {profile.url && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReferenceId(profile.id);
+                        setTranscript(profile.transcript || '');
+                        setReferenceUrl(null);
+                        onGoToStudio();
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all"
+                    >
+                      <Mic2 size={14} /> Use in Studio
+                    </button>
+                  )}
+                  {!profile.alignment_available && profile.url && (
+                    <button
+                      onClick={(e) => reprocessReference(e, profile.id)}
+                      disabled={reprocessingId === profile.id}
+                      title="Re-run WhisperX forced alignment on this reference"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400/80 text-[10px] font-black uppercase tracking-widest hover:bg-amber-500/20 transition-all disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      <RefreshCw size={12} className={reprocessingId === profile.id ? 'animate-spin' : ''} />
+                      {reprocessingId === profile.id ? 'Aligning…' : 'Re-process'}
+                    </button>
+                  )}
+                </div>
               </motion.div>
             )) : (
               <div className="h-48 flex flex-col items-center justify-center text-center opacity-30 bg-white/5 rounded-3xl border border-white/5 border-dashed">
@@ -181,6 +230,11 @@ export default function Library({ setReferenceId, setTranscript, setReferenceUrl
                       <div className="flex-1 space-y-2 overflow-hidden w-full">
                         <div className="flex items-center gap-3">
                           <span className="px-2 py-0.5 bg-secondary/10 text-secondary text-[8px] font-black rounded-full border border-secondary/20">{gen.model_type.toUpperCase()}</span>
+                          {gen.used_aligned_chunk && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[8px] font-black rounded-full border border-emerald-500/20">
+                              <Sparkles size={8} /> Aligned
+                            </span>
+                          )}
                           <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">{new Date(gen.timestamp * 1000).toLocaleString()}</span>
                         </div>
                         <p className="text-sm text-white/90 font-medium leading-relaxed">"{gen.text}"</p>

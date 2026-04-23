@@ -3,23 +3,10 @@ import gc
 import os
 from typing import Any, Optional
 
-# Monkey patch to fix coqui-tts compatibility with modern transformers
-try:
-    import transformers.pytorch_utils
-    if not hasattr(transformers.pytorch_utils, 'isin_mps_friendly'):
-        def isin_mps_friendly(elements, test_elements, assume_unique=False, invert=False):
-            return torch.isin(elements, test_elements, assume_unique=assume_unique, invert=invert)
-        transformers.pytorch_utils.isin_mps_friendly = isin_mps_friendly
-except Exception:
-    pass
-
-# Monkey patch torch.load for PyTorch 2.6+ (coqui-tts needs to unpickle objects)
-_original_torch_load = torch.load
-def _patched_torch_load(*args, **kwargs):
-    if 'weights_only' not in kwargs:
-        kwargs['weights_only'] = False
-    return _original_torch_load(*args, **kwargs)
-torch.load = _patched_torch_load
+# Apply all compatibility patches before any ML library imports.
+# compat.py handles: transformers isin_mps_friendly, BeamSearchScorer,
+# torch.load weights_only, coqpit generic-type deserialization, torchaudio AudioMetaData.
+import utils.compat  # noqa: F401  (import for side-effects)
 
 class ModelManager:
     _instance = None
