@@ -13,6 +13,7 @@ import Studio from './components/Studio';
 import Library from './components/Library';
 import Settings from './components/Settings';
 import Analytics from './components/Analytics';
+import GlobalPlayer from './components/GlobalPlayer';
 
 const API_BASE = "http://localhost:8000";
 
@@ -27,6 +28,8 @@ export default function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState({ device: 'CPU', current_model: 'None', mps_available: false });
+  const [nowPlaying, setNowPlaying] = useState(null);
+  const [isGlobalPlaying, setIsGlobalPlaying] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -117,6 +120,7 @@ export default function App() {
               handleFileUpload={handleFileUpload}
               handleSynthesize={handleSynthesize}
               history={history}
+              setNowPlaying={setNowPlaying}
             />
         );
       case 'Library':
@@ -125,6 +129,10 @@ export default function App() {
           setTranscript={setTranscript}
           setReferenceUrl={setReferenceUrl}
           onGoToStudio={() => setActiveTab('Studio')}
+          setNowPlaying={setNowPlaying}
+          nowPlaying={nowPlaying}
+          isGlobalPlaying={isGlobalPlaying}
+          setIsGlobalPlaying={setIsGlobalPlaying}
         />;
       case 'Analytics':
         return <Analytics stats={stats} />;
@@ -146,6 +154,7 @@ export default function App() {
               handleFileUpload={handleFileUpload}
               handleSynthesize={handleSynthesize}
               history={history}
+              setNowPlaying={setNowPlaying}
             />
         );
     }
@@ -235,6 +244,18 @@ export default function App() {
             >
                 {renderContent()}
             </motion.div>
+        </AnimatePresence>
+
+        {/* GLOBAL AUDIO PLAYER (Now contained within main) */}
+        <AnimatePresence>
+          {nowPlaying && (
+            <GlobalPlayer 
+              clip={nowPlaying} 
+              onClear={() => setNowPlaying(null)} 
+              isPlaying={isGlobalPlaying}
+              setIsPlaying={setIsGlobalPlaying}
+            />
+          )}
         </AnimatePresence>
       </main>
     </div>

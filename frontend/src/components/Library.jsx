@@ -6,15 +6,23 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import AudioPlayer from './AudioPlayer';
 
 const API_BASE = "http://localhost:8000";
 
-export default function Library({ setReferenceId, setTranscript, setReferenceUrl, onGoToStudio }) {
+export default function Library({ 
+  setReferenceId, 
+  setTranscript, 
+  setReferenceUrl, 
+  onGoToStudio, 
+  setNowPlaying, 
+  nowPlaying, 
+  isGlobalPlaying, 
+  setIsGlobalPlaying 
+}) {
   const [profiles, setProfiles] = React.useState([]);
   const [selectedProfileId, setSelectedProfileId] = React.useState(null);
-  const [playingId, setPlayingId] = React.useState(null);
   const [reprocessingId, setReprocessingId] = React.useState(null);
-  const audioRef = React.useRef(null);
 
   const fetchProfiles = async () => {
     try {
@@ -32,18 +40,12 @@ export default function Library({ setReferenceId, setTranscript, setReferenceUrl
     fetchProfiles();
   }, []);
 
-  const handlePlay = (id, url) => {
-    if (playingId === id) {
-      audioRef.current?.pause();
-      setPlayingId(null);
+  const handlePlay = (id, url, title, subtext) => {
+    if (nowPlaying?.id === id) {
+      setIsGlobalPlaying(!isGlobalPlaying);
     } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      audioRef.current = new Audio(url);
-      audioRef.current.play();
-      setPlayingId(id);
-      audioRef.current.onended = () => setPlayingId(null);
+      setNowPlaying({ url, id, title, subtext });
+      setIsGlobalPlaying(true);
     }
   };
 
@@ -123,10 +125,10 @@ export default function Library({ setReferenceId, setTranscript, setReferenceUrl
                   <div className="flex items-center gap-3">
                     {profile.url ? (
                       <button 
-                        onClick={(e) => { e.stopPropagation(); handlePlay(`ref_${profile.id}`, API_BASE + profile.url); }}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${playingId === `ref_${profile.id}` ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-white/10 text-white/40 group-hover:text-white/80 group-hover:bg-white/20'}`}
+                        onClick={(e) => { e.stopPropagation(); handlePlay(`ref_${profile.id}`, API_BASE + profile.url, "Reference Audio", profile.transcript); }}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${nowPlaying?.id === `ref_${profile.id}` ? 'bg-primary/20 text-primary border border-primary/40' : 'bg-white/10 text-white/40 hover:text-white/80 hover:bg-white/20'}`}
                       >
-                        {playingId === `ref_${profile.id}` ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+                        {nowPlaying?.id === `ref_${profile.id}` && isGlobalPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
                       </button>
                     ) : (
                       <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-white/30 uppercase tracking-[0.15em]">
@@ -222,41 +224,46 @@ export default function Library({ setReferenceId, setTranscript, setReferenceUrl
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="glass-card !p-6 flex flex-col md:flex-row items-center gap-8 border-white/5 hover:border-secondary/20 group"
+                      className="glass-card !p-6 flex flex-col border-white/5 hover:border-secondary/20 group"
                     >
-                      <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center border border-white/5 group-hover:bg-secondary/10 transition-all shrink-0">
-                        <Waveform size={20} className="text-white/20 group-hover:text-secondary transition-all" />
-                      </div>
-                      <div className="flex-1 space-y-2 overflow-hidden w-full">
-                        <div className="flex items-center gap-3">
-                          <span className="px-2 py-0.5 bg-secondary/10 text-secondary text-[8px] font-black rounded-full border border-secondary/20">{gen.model_type.toUpperCase()}</span>
-                          {gen.used_aligned_chunk && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[8px] font-black rounded-full border border-emerald-500/20">
-                              <Sparkles size={8} /> Aligned
-                            </span>
-                          )}
-                          <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">{new Date(gen.timestamp * 1000).toLocaleString()}</span>
+                      <div className="flex flex-col md:flex-row items-center gap-8 w-full">
+                        <div className="flex items-center gap-8 flex-1 w-full">
+                          <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center border border-white/5 group-hover:bg-secondary/10 transition-all shrink-0">
+                            <Waveform size={20} className="text-white/20 group-hover:text-secondary transition-all" />
+                          </div>
+                          <div className="flex-1 space-y-2 overflow-hidden w-full">
+                            <div className="flex items-center gap-3">
+                              <span className="px-2 py-0.5 bg-secondary/10 text-secondary text-[8px] font-black rounded-full border border-secondary/20">{gen.model_type.toUpperCase()}</span>
+                              {gen.used_aligned_chunk && (
+                                <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[8px] font-black rounded-full border border-emerald-500/20">
+                                  <Sparkles size={8} /> Aligned
+                                </span>
+                              )}
+                              <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">{new Date(gen.timestamp * 1000).toLocaleString()}</span>
+                            </div>
+                            <p className="text-sm text-white/90 font-medium leading-relaxed">"{gen.text}"</p>
+                          </div>
                         </div>
-                        <p className="text-sm text-white/90 font-medium leading-relaxed">"{gen.text}"</p>
-                      </div>
-                      <div className="flex items-center gap-4 shrink-0">
-                        <div className="w-[1px] h-8 bg-white/5 hidden md:block"></div>
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => handlePlay(`gen_${gen.id}`, API_BASE + gen.url)} 
-                            className={`p-3 rounded-xl transition-all ${playingId === `gen_${gen.id}` ? 'bg-secondary/20 text-secondary' : 'hover:bg-white/10 text-white/40'}`}
-                          >
-                            {playingId === `gen_${gen.id}` ? <Pause size={18} /> : <Play size={18} />}
-                          </button>
-                          <a href={API_BASE + gen.url} download={`aura_${gen.id}.wav`} className="p-3 hover:bg-white/10 rounded-xl transition-all">
-                            <Download size={18} className="text-white/40" />
-                          </a>
-                          <button 
-                            onClick={(e) => deleteGeneration(e, gen.id)}
-                            className="p-3 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+
+                        <div className="flex items-center gap-4 shrink-0">
+                          <div className="w-[1px] h-8 bg-white/5 hidden md:block"></div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => handlePlay(`gen_${gen.id}`, API_BASE + gen.url, "Generation", gen.text)} 
+                              className={`p-3 rounded-xl transition-all ${nowPlaying?.id === `gen_${gen.id}` ? 'bg-primary/20 text-primary' : 'hover:bg-white/10 text-white/40'}`}
+                            >
+                              {nowPlaying?.id === `gen_${gen.id}` && isGlobalPlaying ? <Pause size={18} /> : <Play size={18} />}
+                            </button>
+                            <a href={API_BASE + gen.url} download={`aura_${gen.id}.wav`} className="p-3 hover:bg-white/10 rounded-xl transition-all">
+                              <Download size={18} className="text-white/40" />
+                            </a>
+                            <button 
+                              onClick={(e) => deleteGeneration(e, gen.id)}
+                              className="p-3 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </motion.div>

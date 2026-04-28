@@ -3,6 +3,7 @@ import {
   Mic, Upload, ChevronRight, RefreshCw, AudioWaveform as WaveformIcon, Activity, Play, Pause, Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import AudioPlayer from './AudioPlayer';
 
 const WaveformVisualizer = ({ isActive }) => {
   const bars = Array.from({ length: 32 });
@@ -42,49 +43,17 @@ export default function Studio({
   isUploading, 
   handleFileUpload, 
   handleSynthesize,
-  history = []
+  history = [],
+  setNowPlaying,
+  nowPlaying,
+  isGlobalPlaying,
+  setIsGlobalPlaying
 }) {
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const [progress, setProgress] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-  const [isPlayingReference, setIsPlayingReference] = useState(false);
-  const [isPlayingOutput, setIsPlayingOutput] = useState(false);
-  const currentAudioRef = useRef(null);
-
-  const togglePlayback = (url, isOutput) => {
-    if (!url) return;
-    
-    // If something is already playing
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      
-      // If we clicked the same button that is currently playing, just stop and return
-      if ((isOutput && isPlayingOutput) || (!isOutput && isPlayingReference)) {
-        setIsPlayingOutput(false);
-        setIsPlayingReference(false);
-        currentAudioRef.current = null;
-        return;
-      }
-    }
-
-    // Play new audio
-    const audio = new Audio(url);
-    currentAudioRef.current = audio;
-    
-    if (isOutput) {
-      setIsPlayingOutput(true);
-      setIsPlayingReference(false);
-      audio.onended = () => setIsPlayingOutput(false);
-    } else {
-      setIsPlayingReference(true);
-      setIsPlayingOutput(false);
-      audio.onended = () => setIsPlayingReference(false);
-    }
-    
-    audio.play();
-  };
 
   // Simulate progress when generating
   useEffect(() => {
@@ -171,10 +140,22 @@ export default function Studio({
               >
                 <div className="flex flex-col items-center gap-4">
                   <button 
-                    onClick={() => togglePlayback(referenceUrl, false)}
-                    className={`w-16 h-16 rounded-full flex items-center justify-center border shadow-[0_0_40px_rgba(34,197,94,0.1)] transition-all hover:scale-105 active:scale-95 ${isPlayingReference ? 'bg-green-500/20 border-green-500/50' : 'bg-green-500/10 border-green-500/20'}`}
+                    onClick={() => {
+                      if (nowPlaying?.id === 'reference') {
+                        setIsGlobalPlaying(!isGlobalPlaying);
+                      } else {
+                        setNowPlaying({
+                          url: referenceUrl,
+                          id: 'reference',
+                          title: "Reference Capture",
+                          subtext: transcript
+                        });
+                        setIsGlobalPlaying(true);
+                      }
+                    }}
+                    className={`w-16 h-16 rounded-full flex items-center justify-center border shadow-[0_0_40px_rgba(34,197,94,0.1)] transition-all hover:scale-105 active:scale-95 ${nowPlaying?.id === 'reference' ? 'bg-green-500/20 border-green-500/50' : 'bg-green-500/10 border-green-500/20'}`}
                   >
-                    {isPlayingReference ? <Pause size={32} className="text-green-400" /> : <Play size={32} className="text-green-400 ml-1" />}
+                    {nowPlaying?.id === 'reference' && isGlobalPlaying ? <Pause size={32} className="text-green-400" /> : <Play size={32} className="text-green-400 ml-1" />}
                   </button>
                   <div className="space-y-1">
                     <p className="text-xl font-bold font-headline">Reference Captured</p>
@@ -282,22 +263,37 @@ export default function Studio({
                       key="controls"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="flex items-center gap-8"
+                      className="w-full"
                     >
-                      <button 
-                        onClick={() => togglePlayback(history[0]?.url, true)}
-                        disabled={!history[0]}
-                        className={`w-16 h-16 bg-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(255,255,255,0.2)] ${!history[0] ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        {isPlayingOutput ? <Pause size={24} className="text-black" /> : <Play size={24} className="text-black ml-1" />}
-                      </button>
-                      <a 
-                        href={history[0]?.url}
-                        download={history[0] ? `aura_${history[0].id}.wav` : ''}
-                        className={`p-3 transition-colors ${history[0] ? 'text-white/60 hover:text-white' : 'text-white/20 pointer-events-none'}`}
-                      >
-                        <Download size={20} />
-                      </a>
+                      {history[0] ? (
+                        <div className="flex flex-col items-center gap-6 w-full py-6">
+                          <button 
+                            onClick={() => {
+                              const id = `gen_${history[0].id}`;
+                              if (nowPlaying?.id === id) {
+                                setIsGlobalPlaying(!isGlobalPlaying);
+                              } else {
+                                setNowPlaying({
+                                  url: history[0].url,
+                                  id: id,
+                                  title: "Synthesis Result",
+                                  subtext: history[0].text
+                                });
+                                setIsGlobalPlaying(true);
+                              }
+                            }}
+                            className={`w-20 h-20 rounded-3xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(255,255,255,0.1)] group ${nowPlaying?.id === `gen_${history[0].id}` ? 'bg-primary text-white shadow-[0_0_40px_rgba(186,158,255,0.4)]' : 'bg-white text-black'}`}
+                          >
+                            {nowPlaying?.id === `gen_${history[0].id}` && isGlobalPlaying ? <Pause size={32} /> : <Play size={32} className="ml-1" />}
+                          </button>
+                          <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Click to preview master</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-4 text-white/10 py-10">
+                          <WaveformIcon size={48} strokeWidth={1} />
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em]">Awaiting Synthesis</p>
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
