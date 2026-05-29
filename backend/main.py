@@ -15,6 +15,8 @@ from utils.alignment import (
     chunk_dir_for_reference,
 )
 import scipy.io.wavfile as wavfile
+from utils.text import split_text_into_chunks
+from pydub import AudioSegment
 
 app = FastAPI(title="Aura Voice Studio API")
 
@@ -269,33 +271,46 @@ if _MULTIPART_AVAILABLE:
             output_id = str(uuid.uuid4())
             output_file = os.path.join(OUTPUT_DIR, f"{output_id}.wav")
 
-            if model_type == "xtts":
-                if model is None:
-                    raise HTTPException(status_code=500, detail="XTTS model failed to load")
-                # Use best-matched aligned chunk as speaker reference
-                model.tts_to_file(
-                    text=text,
-                    speaker_wav=effective_ref_path,
-                    language="en",
-                    file_path=output_file,
-                )
+            # Chunk text for stability
+            text_chunks = split_text_into_chunks(text, max_chars=250)
+            temp_output_files = []
 
-            elif model_type == "f5":
-                try:
+            for i, chunk in enumerate(text_chunks):
+                chunk_file = os.path.join(TEMP_DIR, f"{output_id}_chunk_{i}.wav")
+                
+                if model_type == "xtts":
+                    if model is None:
+                        raise HTTPException(status_code=500, detail="XTTS model failed to load")
+                    model.tts_to_file(
+                        text=chunk,
+                        speaker_wav=effective_ref_path,
+                        language="en",
+                        file_path=chunk_file,
+                    )
+                elif model_type == "f5":
                     from f5_tts_mlx.generate import generate
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=f"F5 generate import failed: {str(e)}")
+                    if not effective_ref_text:
+                        effective_ref_text = transcribe_audio(effective_ref_path)
+                    generate(
+                        generation_text=chunk,
+                        ref_audio_path=effective_ref_path,
+                        ref_audio_text=effective_ref_text,
+                        output_path=chunk_file,
+                    )
+                
+                temp_output_files.append(chunk_file)
 
-                # Ensure we have a transcript; last-resort: live transcription
-                if not effective_ref_text:
-                    effective_ref_text = transcribe_audio(effective_ref_path)
-
-                generate(
-                    generation_text=text,
-                    ref_audio_path=effective_ref_path,
-                    ref_audio_text=effective_ref_text,
-                    output_path=output_file,
-                )
+            # Merge audio chunks
+            if len(temp_output_files) == 1:
+                shutil.move(temp_output_files[0], output_file)
+            else:
+                combined = AudioSegment.empty()
+                for chunk_file in temp_output_files:
+                    segment = AudioSegment.from_wav(chunk_file)
+                    combined += segment
+                    # Cleanup chunk file
+                    os.remove(chunk_file)
+                combined.export(output_file, format="wav")
 
             # Save metadata
             meta = load_metadata()
@@ -320,6 +335,127 @@ if _MULTIPART_AVAILABLE:
             import traceback
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/synthesize-stream")
+    async def synthesize_stream(
+        text: str = Form(...),
+        model_type: str = Form("xtts"),
+        reference_id: str = Form(...),
+    ):
+        """
+        Synthesizes speech using the selected model and reference audio, yielding
+        real-time progress updates chunk by chunk as a Server-Sent Events (SSE) stream.
+        """
+        if model_type not in {"xtts", "f5"}:
+            raise HTTPException(status_code=400, detail=f"Unsupported model_type: {model_type}")
+
+        ref_path = os.path.join(REFERENCES_DIR, f"{reference_id}.wav")
+        if not os.path.exists(ref_path):
+            raise HTTPException(status_code=404, detail="Reference audio not found")
+
+        # Resolve best chunk (falls back to full reference if no chunks exist)
+        chunk_dir = chunk_dir_for_reference(REFERENCES_DIR, reference_id)
+        best_chunk = best_chunk_for_model(chunk_dir, model_type)
+
+        effective_ref_path = best_chunk.path if best_chunk and os.path.exists(best_chunk.path) else ref_path
+        effective_ref_text = best_chunk.transcript if best_chunk else ""
+
+        # Legacy fallback: read old .txt file if alignment chunking wasn't run
+        if not effective_ref_text:
+            tpath = _transcript_path(reference_id)
+            if os.path.exists(tpath):
+                try:
+                    with open(tpath, "r", encoding="utf-8") as f:
+                        effective_ref_text = f.read().strip()
+                except Exception:
+                    pass
+
+        # Chunk text for stability
+        text_chunks = split_text_into_chunks(text, max_chars=250)
+        total_chunks = len(text_chunks)
+        output_id = str(uuid.uuid4())
+        output_file = os.path.join(OUTPUT_DIR, f"{output_id}.wav")
+
+        async def event_generator():
+            temp_output_files = []
+            try:
+                # Load model
+                model = model_manager.load_model(model_type)
+                
+                yield f"data: {json.dumps({'event': 'started', 'total_chunks': total_chunks})}\n\n"
+                
+                for i, chunk in enumerate(text_chunks):
+                    yield f"data: {json.dumps({'event': 'progress', 'current_chunk': i + 1, 'total_chunks': total_chunks, 'text': chunk})}\n\n"
+                    
+                    chunk_file = os.path.join(TEMP_DIR, f"{output_id}_chunk_{i}.wav")
+                    
+                    if model_type == "xtts":
+                        if model is None:
+                            raise Exception("XTTS model failed to load")
+                        model.tts_to_file(
+                            text=chunk,
+                            speaker_wav=effective_ref_path,
+                            language="en",
+                            file_path=chunk_file,
+                        )
+                    elif model_type == "f5":
+                        from f5_tts_mlx.generate import generate
+                        if not effective_ref_text:
+                            effective_ref_text = transcribe_audio(effective_ref_path)
+                        generate(
+                            generation_text=chunk,
+                            ref_audio_path=effective_ref_path,
+                            ref_audio_text=effective_ref_text,
+                            output_path=chunk_file,
+                        )
+                    
+                    temp_output_files.append(chunk_file)
+
+                # Merge audio chunks
+                yield f"data: {json.dumps({'event': 'merging'})}\n\n"
+                
+                if len(temp_output_files) == 1:
+                    shutil.move(temp_output_files[0], output_file)
+                else:
+                    combined = AudioSegment.empty()
+                    for chunk_file in temp_output_files:
+                        segment = AudioSegment.from_wav(chunk_file)
+                        combined += segment
+                        # Cleanup chunk file
+                        os.remove(chunk_file)
+                    combined.export(output_file, format="wav")
+
+                # Save metadata
+                meta = load_metadata()
+                import time
+                meta["generations"].append({
+                    "id": output_id,
+                    "reference_id": reference_id,
+                    "text": text,
+                    "model_type": model_type,
+                    "timestamp": int(time.time()),
+                    "url": f"/output/{output_id}.wav",
+                    "used_aligned_chunk": best_chunk is not None,
+                    "chunk_index": best_chunk.index if best_chunk else None,
+                })
+                save_metadata(meta)
+
+                yield f"data: {json.dumps({'event': 'completed', 'url': f'/output/{output_id}.wav', 'id': output_id, 'text': text})}\n\n"
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                # Clean up any temp files created
+                for f in temp_output_files:
+                    if os.path.exists(f):
+                        try:
+                            os.remove(f)
+                        except:
+                            pass
+                yield f"data: {json.dumps({'event': 'error', 'detail': str(e)})}\n\n"
+
+        from fastapi.responses import StreamingResponse
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     @app.post("/reprocess-reference/{ref_id}")
     async def reprocess_reference(ref_id: str):
@@ -377,6 +513,13 @@ else:
 
     @app.post("/synthesize")
     async def synthesize_unavailable():
+        raise HTTPException(
+            status_code=503,
+            detail='Missing dependency "python-multipart". Install it with: pip install python-multipart',
+        )
+
+    @app.post("/synthesize-stream")
+    async def synthesize_stream_unavailable():
         raise HTTPException(
             status_code=503,
             detail='Missing dependency "python-multipart". Install it with: pip install python-multipart',

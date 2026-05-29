@@ -47,30 +47,14 @@ export default function Studio({
   setNowPlaying,
   nowPlaying,
   isGlobalPlaying,
-  setIsGlobalPlaying
+  setIsGlobalPlaying,
+  generationProgress = 0,
+  generationStatus = ''
 }) {
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-  const [progress, setProgress] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-
-  // Simulate progress when generating
-  useEffect(() => {
-    let interval;
-    if (isGenerating) {
-      setProgress(0);
-      interval = setInterval(() => {
-        setProgress(p => {
-          if (p >= 95) return 95;
-          return p + Math.random() * 5;
-        });
-      }, 300);
-    } else {
-      setProgress(100);
-    }
-    return () => clearInterval(interval);
-  }, [isGenerating]);
 
   const toggleRecording = async () => {
     if (isRecording) {
@@ -247,14 +231,14 @@ export default function Studio({
                       exit={{ opacity: 0, y: -10 }}
                       className="w-full space-y-3"
                     >
-                      <div className="flex justify-between text-[10px] font-black text-primary uppercase tracking-[0.2em]">
-                        <span>Orchestrating...</span>
-                        <span>{Math.round(progress)}%</span>
+                      <div className="flex justify-between text-[10px] font-black text-primary uppercase tracking-[0.2em] gap-4">
+                        <span className="truncate max-w-[80%]">{generationStatus || 'Orchestrating...'}</span>
+                        <span className="shrink-0">{Math.round(generationProgress)}%</span>
                       </div>
                       <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                         <motion.div 
                           className="h-full bg-gradient-to-r from-primary to-secondary shadow-[0_0_15px_rgba(58,223,250,0.6)]"
-                          style={{ width: `${progress}%` }}
+                          style={{ width: `${generationProgress}%` }}
                         />
                       </div>
                     </motion.div>
