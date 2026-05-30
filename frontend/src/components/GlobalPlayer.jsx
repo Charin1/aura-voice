@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { 
   Play, Pause, Volume2, VolumeX, FastForward, 
-  RotateCcw, X, Music, Download 
+  RotateCcw, X, Music, Download, FileText 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying }) => {
+const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: setGlobalCurrentTime, setDuration: setGlobalDuration }) => {
   const containerRef = useRef(null);
   const wavesurferRef = useRef(null);
   const [volume, setVolume] = useState(1);
@@ -16,7 +16,47 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
+  // Synced Transcript states and refs
+  const [showTranscript, setShowTranscript] = useState(false);
+  const scrollContainerRef = useRef(null);
+  const wordRefs = useRef([]);
+
   const speedOptions = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 3.5, 4];
+
+  // Parse words from subtext (transcript or generated text)
+  const words = clip?.subtext ? clip.subtext.trim().split(/\s+/) : [];
+
+  // Map playback progress to word index
+  const progress = duration > 0 ? currentTime / duration : 0;
+  const activeWordIndex = words.length > 0 ? Math.min(words.length - 1, Math.floor(progress * words.length)) : -1;
+
+  // Reset word refs when clip changes
+  useEffect(() => {
+    wordRefs.current = [];
+  }, [clip?.url]);
+
+  // Center active word inside scrollable transcript viewport
+  useEffect(() => {
+    if (showTranscript && activeWordIndex >= 0 && wordRefs.current[activeWordIndex] && scrollContainerRef.current) {
+      const activeWordEl = wordRefs.current[activeWordIndex];
+      const container = scrollContainerRef.current;
+      
+      const containerHeight = container.clientHeight;
+      const wordOffsetTop = activeWordEl.offsetTop;
+      const wordHeight = activeWordEl.clientHeight;
+      
+      container.scrollTo({
+        top: wordOffsetTop - (containerHeight / 2) + (wordHeight / 2),
+        behavior: 'smooth'
+      });
+    }
+  }, [activeWordIndex, showTranscript]);
+
+  // Reset global time and duration when clip changes
+  useEffect(() => {
+    if (setGlobalCurrentTime) setGlobalCurrentTime(0);
+    if (setGlobalDuration) setGlobalDuration(0);
+  }, [clip?.url, setGlobalCurrentTime, setGlobalDuration]);
 
   useEffect(() => {
     if (!containerRef.current || !clip) return;
@@ -39,7 +79,9 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying }) => {
       wavesurferRef.current.load(clip.url);
 
       wavesurferRef.current.on('ready', () => {
-        setDuration(wavesurferRef.current.getDuration());
+        const d = wavesurferRef.current.getDuration();
+        setDuration(d);
+        if (setGlobalDuration) setGlobalDuration(d);
         wavesurferRef.current.play();
       });
 
@@ -47,7 +89,14 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying }) => {
       wavesurferRef.current.on('pause', () => setIsPlaying(false));
       wavesurferRef.current.on('finish', () => setIsPlaying(false));
       wavesurferRef.current.on('audioprocess', () => {
-        setCurrentTime(wavesurferRef.current.getCurrentTime());
+        const t = wavesurferRef.current.getCurrentTime();
+        setCurrentTime(t);
+        if (setGlobalCurrentTime) setGlobalCurrentTime(t);
+      });
+      wavesurferRef.current.on('interaction', () => {
+        const t = wavesurferRef.current.getCurrentTime();
+        setCurrentTime(t);
+        if (setGlobalCurrentTime) setGlobalCurrentTime(t);
       });
     }, 150);
 
@@ -100,6 +149,51 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying }) => {
       exit={{ y: 80 }}
       className="absolute bottom-0 left-0 w-full z-[100] bg-black/60 backdrop-blur-3xl border-t border-white/5"
     >
+      {/* Synced Transcript Drawer */}
+      <AnimatePresence>
+        {showTranscript && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 130, opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-b border-white/5 bg-black/35 overflow-hidden relative"
+          >
+            <div 
+              ref={scrollContainerRef}
+              className="w-full h-full overflow-y-auto px-12 py-6 scroll-smooth text-center max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-y-2 relative"
+              style={{ position: 'relative' }}
+            >
+              {words.length > 0 ? (
+                words.map((word, idx) => {
+                  const isActive = idx === activeWordIndex;
+                  return (
+                    <span
+                      key={idx}
+                      ref={el => wordRefs.current[idx] = el}
+                      className={`inline-block transition-all duration-300 text-sm md:text-base tracking-wide ${
+                        isActive 
+                          ? 'text-primary font-black scale-110 drop-shadow-[0_0_15px_rgba(58,223,250,0.8)]' 
+                          : idx < activeWordIndex
+                            ? 'text-white/60 font-semibold'
+                            : 'text-white/20'
+                      }`}
+                      style={{ marginRight: '0.4em' }}
+                    >
+                      {word}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="text-white/20 text-xs font-bold tracking-widest uppercase">No Text Available</span>
+              )}
+            </div>
+            {/* Top/Bottom Fade Gradients */}
+            <div className="absolute top-0 left-0 w-full h-6 bg-gradient-to-b from-[#0a0a0c] to-transparent pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-full h-6 bg-gradient-to-t from-[#0a0a0c] to-transparent pointer-events-none" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-[1600px] mx-auto h-20 px-6 flex items-center justify-between gap-8">
         
         {/* LEFT: INFO */}
@@ -181,6 +275,14 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying }) => {
               {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </button>
           </div>
+
+          <button
+            onClick={() => setShowTranscript(!showTranscript)}
+            className={`p-3 rounded-xl transition-all border ${showTranscript ? 'bg-primary/20 text-primary border-primary/30' : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10 hover:text-white'}`}
+            title="Toggle Synced Transcript"
+          >
+            <FileText size={18} />
+          </button>
 
           <a 
             href={clip.url} 

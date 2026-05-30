@@ -69,6 +69,16 @@ export default function Studio({
   const audioRef = useRef(null);
   const [isPlayingChunks, setIsPlayingChunks] = useState(false);
 
+  // Cleanup on unmount to prevent leaked playback
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
   // When synthesis starts, we reset progressive playlist
   useEffect(() => {
     if (isGenerating) {
@@ -84,10 +94,10 @@ export default function Studio({
 
   // When a new chunk url is received
   useEffect(() => {
-    if (lastChunkUrl && !playlist.includes(lastChunkUrl)) {
+    if (isGenerating && lastChunkUrl && !playlist.includes(lastChunkUrl)) {
       setPlaylist(prev => [...prev, lastChunkUrl]);
     }
-  }, [lastChunkUrl]);
+  }, [lastChunkUrl, isGenerating]);
 
   // Handle playing playlist sequentially
   useEffect(() => {
@@ -104,13 +114,26 @@ export default function Studio({
           setCurrentPlayIndex(prev => prev + 1);
         };
       }
+      
+      // Pause global player if it is active
+      if (isGlobalPlaying && setIsGlobalPlaying) {
+        setIsGlobalPlaying(false);
+      }
+
       audioRef.current.src = playlist[currentPlayIndex];
       audioRef.current.play().catch(e => console.error("Playback failed", e));
       setIsPlayingChunks(true);
     } else if (currentPlayIndex >= playlist.length && playlist.length > 0) {
       setIsPlayingChunks(false);
     }
-  }, [currentPlayIndex, playlist]);
+  }, [currentPlayIndex, playlist, isGlobalPlaying, setIsGlobalPlaying]);
+
+  // If global player starts playing, pause progressive chunk playback
+  useEffect(() => {
+    if (isGlobalPlaying && isPlayingChunks) {
+      stopChunkPlayback();
+    }
+  }, [isGlobalPlaying, isPlayingChunks]);
 
   const stopChunkPlayback = () => {
     if (audioRef.current) {
@@ -157,7 +180,7 @@ export default function Studio({
   };
 
   return (
-    <div className="flex-1 flex flex-col p-12 gap-12 z-10 relative overflow-y-auto no-scrollbar">
+    <div className="flex-1 flex flex-col px-12 pt-12 pb-56 gap-12 z-10 relative overflow-y-auto no-scrollbar">
       <header className="flex justify-between items-start">
         <div>
           <motion.h2 
@@ -310,24 +333,26 @@ export default function Studio({
                )}
              </div>
 
-             <div className="relative group">
-               <textarea 
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="The silent whispers of the machine..."
-                className="w-full min-h-[280px] input-glass leading-relaxed resize-none"
-               />
-               <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onSynthesizeClick}
-                disabled={isGenerating || !referenceId || !inputText}
-                className={`absolute bottom-6 right-6 flex items-center gap-4 py-4 px-10 rounded-2xl font-black shadow-2xl transition-all ${isGenerating ? 'bg-white/5 text-white/20' : 'btn-primary'}`}
-               >
-                 {isGenerating ? <Activity size={20} className="animate-spin" /> : <ChevronRight size={20} />}
-                 {isGenerating ? 'ORCHESTRATING...' : 'GENERATE VOICE'}
-               </motion.button>
-             </div>
+              <div className="flex flex-col gap-4">
+                <textarea 
+                 value={inputText}
+                 onChange={(e) => setInputText(e.target.value)}
+                 placeholder="The silent whispers of the machine..."
+                 className="w-full min-h-[280px] input-glass leading-relaxed resize-none"
+                />
+                <div className="flex justify-end">
+                  <motion.button 
+                   whileHover={{ scale: 1.02 }}
+                   whileTap={{ scale: 0.98 }}
+                   onClick={onSynthesizeClick}
+                   disabled={isGenerating || !referenceId || !inputText}
+                   className={`flex items-center gap-4 py-4 px-10 rounded-2xl font-black shadow-2xl transition-all ${isGenerating ? 'bg-white/5 text-white/20' : 'btn-primary'}`}
+                  >
+                    {isGenerating ? <Activity size={20} className="animate-spin" /> : <ChevronRight size={20} />}
+                    {isGenerating ? 'ORCHESTRATING...' : 'GENERATE VOICE'}
+                  </motion.button>
+                </div>
+              </div>
           </div>
 
           {/* REAL-TIME AUDIO PLAYER & WAVEFORM */}

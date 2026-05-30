@@ -10,6 +10,72 @@ import AudioPlayer from './AudioPlayer';
 
 const API_BASE = "http://localhost:8000";
 
+const SyncedText = ({ text, isPlaying, currentTime, duration, className }) => {
+  const containerRef = React.useRef(null);
+  const wordRefs = React.useRef([]);
+  
+  const words = React.useMemo(() => text ? text.trim().split(/\s+/) : [], [text]);
+  const progress = duration > 0 ? currentTime / duration : 0;
+  const activeWordIndex = words.length > 0 ? Math.min(words.length - 1, Math.floor(progress * words.length)) : -1;
+
+  React.useEffect(() => {
+    wordRefs.current = [];
+  }, [text]);
+
+  React.useEffect(() => {
+    if (isPlaying && activeWordIndex >= 0 && wordRefs.current[activeWordIndex] && containerRef.current) {
+      const activeWordEl = wordRefs.current[activeWordIndex];
+      const container = containerRef.current;
+      
+      const containerHeight = container.clientHeight;
+      const containerScrollTop = container.scrollTop;
+      const wordOffsetTop = activeWordEl.offsetTop;
+      const wordHeight = activeWordEl.clientHeight;
+      
+      // Scroll into view only when active word moves past top/bottom boundaries
+      if (wordOffsetTop + wordHeight > containerScrollTop + containerHeight - 8) {
+        container.scrollTo({
+          top: wordOffsetTop - containerHeight + wordHeight + 12,
+          behavior: 'smooth'
+        });
+      } else if (wordOffsetTop < containerScrollTop + 8) {
+        container.scrollTo({
+          top: Math.max(0, wordOffsetTop - 12),
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [activeWordIndex, isPlaying]);
+
+  return (
+    <div ref={containerRef} className={className}>
+      {isPlaying ? (
+        words.map((word, idx) => {
+          const isActive = idx === activeWordIndex;
+          return (
+            <span
+              key={idx}
+              ref={el => wordRefs.current[idx] = el}
+              className={`inline-block transition-all duration-300 origin-center ${
+                isActive 
+                  ? 'text-primary font-black scale-105 drop-shadow-[0_0_10px_rgba(58,223,250,0.5)] mx-0.5' 
+                  : idx < activeWordIndex
+                    ? 'text-white/60 font-semibold'
+                    : 'text-white/20'
+              }`}
+              style={{ marginRight: '0.35em' }}
+            >
+              {word}
+            </span>
+          );
+        })
+      ) : (
+        text ? `"${text}"` : '""'
+      )}
+    </div>
+  );
+};
+
 export default function Library({ 
   setReferenceId, 
   setTranscript, 
@@ -18,7 +84,9 @@ export default function Library({
   setNowPlaying, 
   nowPlaying, 
   isGlobalPlaying, 
-  setIsGlobalPlaying 
+  setIsGlobalPlaying,
+  currentTime = 0,
+  duration = 0
 }) {
   const [profiles, setProfiles] = React.useState([]);
   const [selectedProfileId, setSelectedProfileId] = React.useState(null);
@@ -133,7 +201,7 @@ export default function Library({
 
       <div className="flex-1 flex gap-8 min-h-0">
         {/* LEFT PANE: VOICE PROFILES */}
-        <div className="w-1/3 flex flex-col gap-4 border-r border-white/5 pr-8 overflow-y-auto no-scrollbar pb-12">
+        <div className="w-1/3 flex flex-col gap-4 border-r border-white/5 pr-8 overflow-y-auto no-scrollbar pb-56">
           <h3 className="font-bold tracking-tight uppercase text-sm text-primary/80 mb-1 flex items-center gap-2">
             <User size={18} /> Voice Profiles
           </h3>
@@ -299,9 +367,13 @@ export default function Library({
                   </div>
                 ) : null}
 
-                <p className="text-sm font-medium text-white/80 line-clamp-2 italic leading-relaxed mb-4">
-                  "{profile.transcript || 'Unknown Reference'}"
-                </p>
+                <SyncedText 
+                  text={profile.transcript} 
+                  isPlaying={nowPlaying?.id === `ref_${profile.id}` && isGlobalPlaying} 
+                  currentTime={currentTime} 
+                  duration={duration} 
+                  className="max-h-20 overflow-y-auto custom-scrollbar text-sm font-medium text-white/80 italic leading-relaxed mb-4 pr-1 py-2"
+                />
 
                 <div className="flex gap-2">
                   {profile.url && (
@@ -310,7 +382,7 @@ export default function Library({
                         e.stopPropagation();
                         setReferenceId(profile.id);
                         setTranscript(profile.transcript || '');
-                        setReferenceUrl(null);
+                        setReferenceUrl(API_BASE + profile.url);
                         onGoToStudio();
                       }}
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all"
@@ -341,7 +413,7 @@ export default function Library({
         </div>
 
         {/* RIGHT PANE: GENERATIONS */}
-        <div className="flex-1 flex flex-col gap-4 overflow-y-auto no-scrollbar pl-4 pb-12">
+        <div className="flex-1 flex flex-col gap-4 overflow-y-auto no-scrollbar pl-4 pb-56">
           <h3 className="font-bold tracking-tight uppercase text-sm text-secondary/80 mb-2 flex items-center gap-2">
             <MessageSquare size={18} /> Generated Samples
           </h3>
@@ -365,8 +437,17 @@ export default function Library({
                             <Waveform size={20} className="text-white/20 group-hover:text-secondary transition-all" />
                           </div>
                           <div className="flex-1 space-y-2 overflow-hidden w-full">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2.5 flex-wrap">
                               <span className="px-2 py-0.5 bg-secondary/10 text-secondary text-[8px] font-black rounded-full border border-secondary/20">{gen.model_type.toUpperCase()}</span>
+                              {gen.speed && (
+                                <span className="px-2 py-0.5 bg-white/5 text-white/50 text-[8px] font-black rounded-full border border-white/10">{gen.speed}x Speed</span>
+                              )}
+                              {gen.model_type === 'xtts' && gen.temperature && (
+                                <span className="px-2 py-0.5 bg-white/5 text-white/50 text-[8px] font-black rounded-full border border-white/10">Temp: {gen.temperature}</span>
+                              )}
+                              {gen.model_type === 'f5' && gen.cfg_strength && (
+                                <span className="px-2 py-0.5 bg-white/5 text-white/50 text-[8px] font-black rounded-full border border-white/10">CFG: {gen.cfg_strength}</span>
+                              )}
                               {gen.used_aligned_chunk && (
                                 <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[8px] font-black rounded-full border border-emerald-500/20">
                                   <Sparkles size={8} /> Aligned
@@ -374,7 +455,13 @@ export default function Library({
                               )}
                               <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">{new Date(gen.timestamp * 1000).toLocaleString()}</span>
                             </div>
-                            <p className="text-sm text-white/90 font-medium leading-relaxed">"{gen.text}"</p>
+                            <SyncedText 
+                              text={gen.text} 
+                              isPlaying={nowPlaying?.id === `gen_${gen.id}` && isGlobalPlaying} 
+                              currentTime={currentTime} 
+                              duration={duration} 
+                              className="max-h-32 overflow-y-auto custom-scrollbar text-sm text-white/90 font-medium leading-relaxed pr-2 py-2"
+                            />
                           </div>
                         </div>
 

@@ -19,6 +19,9 @@ Aura Voice decouples complex ML logic from a sleek React frontend via a FastAPI 
 - **Zero-Shot Voice Cloning**: Clone voices using short reference audio — no fine-tuning required.
 - **Dual Model Support**: Choose between **Coqui XTTS-v2** (multilingual) and **F5-TTS MLX** (Apple Silicon native).
 - **Voice Library**: Manage voice profiles with Aligned / Legacy status badges and one-click re-processing for older references.
+- **Real-Time Synced Transcripts**: Enjoy a fully auto-scrolling, word-by-word highlighted transcript drawer in both the global audio player and individual Voice Hub cards.
+- **Sequential Streaming Playback**: Direct real-time streaming synthesis via SSE with automated progressive segment playback.
+- **Inference Parameter Tracking**: Generation cards in the library persist and display the speed, temperature, and CFG parameters used to generate them.
 - **No Cold-Start**: `setup.sh` pre-downloads all models so first launch is instant.
 - **Mac M4 Optimization**: WhisperX on CPU (int8), TTS inference on MPS — zero memory contention.
 

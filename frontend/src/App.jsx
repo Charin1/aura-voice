@@ -30,6 +30,8 @@ export default function App() {
   const [stats, setStats] = useState({ device: 'CPU', current_model: 'None', mps_available: false });
   const [nowPlaying, setNowPlaying] = useState(null);
   const [isGlobalPlaying, setIsGlobalPlaying] = useState(false);
+  const [globalCurrentTime, setGlobalCurrentTime] = useState(0);
+  const [globalDuration, setGlobalDuration] = useState(0);
 
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationStatus, setGenerationStatus] = useState('');
@@ -183,6 +185,9 @@ export default function App() {
               handleSynthesize={handleSynthesize}
               history={history}
               setNowPlaying={setNowPlaying}
+              nowPlaying={nowPlaying}
+              isGlobalPlaying={isGlobalPlaying}
+              setIsGlobalPlaying={setIsGlobalPlaying}
               generationProgress={generationProgress}
               generationStatus={generationStatus}
               activeModel={activeModel}
@@ -199,6 +204,8 @@ export default function App() {
           nowPlaying={nowPlaying}
           isGlobalPlaying={isGlobalPlaying}
           setIsGlobalPlaying={setIsGlobalPlaying}
+          currentTime={globalCurrentTime}
+          duration={globalDuration}
         />;
       case 'Analytics':
         return <Analytics stats={stats} />;
@@ -221,6 +228,9 @@ export default function App() {
               handleSynthesize={handleSynthesize}
               history={history}
               setNowPlaying={setNowPlaying}
+              nowPlaying={nowPlaying}
+              isGlobalPlaying={isGlobalPlaying}
+              setIsGlobalPlaying={setIsGlobalPlaying}
               generationProgress={generationProgress}
               generationStatus={generationStatus}
               activeModel={activeModel}
@@ -324,6 +334,8 @@ export default function App() {
               onClear={() => setNowPlaying(null)} 
               isPlaying={isGlobalPlaying}
               setIsPlaying={setIsGlobalPlaying}
+              setCurrentTime={setGlobalCurrentTime}
+              setDuration={setGlobalDuration}
             />
           )}
         </AnimatePresence>

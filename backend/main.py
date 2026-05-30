@@ -274,6 +274,9 @@ async def run_synthesis_job(job: SynthesisJob):
             "url": f"/output/{job.job_id}.wav",
             "used_aligned_chunk": best_chunk is not None,
             "chunk_index": best_chunk.index if best_chunk else None,
+            "speed": job.speed,
+            "temperature": job.temperature,
+            "cfg_strength": job.cfg_strength,
         })
         save_metadata(meta)
 
