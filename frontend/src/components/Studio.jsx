@@ -49,12 +49,81 @@ export default function Studio({
   isGlobalPlaying,
   setIsGlobalPlaying,
   generationProgress = 0,
-  generationStatus = ''
+  generationStatus = '',
+  activeModel = 'xtts',
+  lastChunkUrl = null
 }) {
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const [isRecording, setIsRecording] = useState(false);
+
+  // Prosody and speed controls state
+  const [speed, setSpeed] = useState(1.0);
+  const [temperature, setTemperature] = useState(0.75);
+  const [cfgStrength, setCfgStrength] = useState(2.0);
+
+  // Progressive chunk playback state
+  const [playlist, setPlaylist] = useState([]);
+  const [currentPlayIndex, setCurrentPlayIndex] = useState(-1);
+  const audioRef = useRef(null);
+  const [isPlayingChunks, setIsPlayingChunks] = useState(false);
+
+  // When synthesis starts, we reset progressive playlist
+  useEffect(() => {
+    if (isGenerating) {
+      setPlaylist([]);
+      setCurrentPlayIndex(-1);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setIsPlayingChunks(false);
+    }
+  }, [isGenerating]);
+
+  // When a new chunk url is received
+  useEffect(() => {
+    if (lastChunkUrl && !playlist.includes(lastChunkUrl)) {
+      setPlaylist(prev => [...prev, lastChunkUrl]);
+    }
+  }, [lastChunkUrl]);
+
+  // Handle playing playlist sequentially
+  useEffect(() => {
+    if (playlist.length > 0 && currentPlayIndex === -1) {
+      setCurrentPlayIndex(0);
+    }
+  }, [playlist, currentPlayIndex]);
+
+  useEffect(() => {
+    if (currentPlayIndex >= 0 && currentPlayIndex < playlist.length) {
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.onended = () => {
+          setCurrentPlayIndex(prev => prev + 1);
+        };
+      }
+      audioRef.current.src = playlist[currentPlayIndex];
+      audioRef.current.play().catch(e => console.error("Playback failed", e));
+      setIsPlayingChunks(true);
+    } else if (currentPlayIndex >= playlist.length && playlist.length > 0) {
+      setIsPlayingChunks(false);
+    }
+  }, [currentPlayIndex, playlist]);
+
+  const stopChunkPlayback = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setCurrentPlayIndex(playlist.length); // mark as finished
+    setIsPlayingChunks(false);
+  };
+
+  const onSynthesizeClick = () => {
+    handleSynthesize(speed, temperature, cfgStrength);
+  };
 
   const toggleRecording = async () => {
     if (isRecording) {
@@ -190,6 +259,57 @@ export default function Studio({
                <label className="text-xs font-black text-white/20 uppercase tracking-[0.3em]">Synthesis Engine</label>
                <span className="text-[10px] font-bold text-white/10 uppercase tracking-widest">{inputText.length} / 1000 Tokens</span>
              </div>
+             
+             {/* Slider Controls */}
+             <div className="flex flex-col sm:flex-row gap-6 bg-white/5 p-5 rounded-2xl border border-white/5 shadow-inner">
+               <div className="flex-1 space-y-3">
+                 <div className="flex justify-between text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                   <span>Speed ({speed}x)</span>
+                 </div>
+                 <input 
+                   type="range" 
+                   min="0.5" 
+                   max="2.0" 
+                   step="0.1" 
+                   value={speed} 
+                   onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                   className="w-full accent-primary bg-white/10 rounded-lg appearance-none h-1 cursor-pointer"
+                 />
+               </div>
+               
+               {activeModel === 'xtts' ? (
+                 <div className="flex-1 space-y-3">
+                   <div className="flex justify-between text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                     <span>Temperature ({temperature})</span>
+                   </div>
+                   <input 
+                     type="range" 
+                     min="0.1" 
+                     max="1.2" 
+                     step="0.05" 
+                     value={temperature} 
+                     onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                     className="w-full accent-secondary bg-white/10 rounded-lg appearance-none h-1 cursor-pointer"
+                   />
+                 </div>
+               ) : (
+                 <div className="flex-1 space-y-3">
+                   <div className="flex justify-between text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                     <span>Guidance Scale ({cfgStrength})</span>
+                   </div>
+                   <input 
+                     type="range" 
+                     min="1.0" 
+                     max="4.0" 
+                     step="0.1" 
+                     value={cfgStrength} 
+                     onChange={(e) => setCfgStrength(parseFloat(e.target.value))}
+                     className="w-full accent-secondary bg-white/10 rounded-lg appearance-none h-1 cursor-pointer"
+                   />
+                 </div>
+               )}
+             </div>
+
              <div className="relative group">
                <textarea 
                 value={inputText}
@@ -200,7 +320,7 @@ export default function Studio({
                <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={handleSynthesize}
+                onClick={onSynthesizeClick}
                 disabled={isGenerating || !referenceId || !inputText}
                 className={`absolute bottom-6 right-6 flex items-center gap-4 py-4 px-10 rounded-2xl font-black shadow-2xl transition-all ${isGenerating ? 'bg-white/5 text-white/20' : 'btn-primary'}`}
                >
@@ -231,8 +351,16 @@ export default function Studio({
                       exit={{ opacity: 0, y: -10 }}
                       className="w-full space-y-3"
                     >
-                      <div className="flex justify-between text-[10px] font-black text-primary uppercase tracking-[0.2em] gap-4">
-                        <span className="truncate max-w-[80%]">{generationStatus || 'Orchestrating...'}</span>
+                      <div className="flex justify-between text-[10px] font-black text-primary uppercase tracking-[0.2em] gap-4 items-center">
+                        <span className="truncate max-w-[65%]">{generationStatus || 'Orchestrating...'}</span>
+                        {isPlayingChunks && (
+                          <button 
+                            onClick={stopChunkPlayback}
+                            className="px-2.5 py-1 bg-red-500/10 border border-red-500/20 text-red-400 text-[8px] font-black rounded-lg hover:bg-red-500/20 transition-all uppercase tracking-widest shrink-0"
+                          >
+                            Mute Playback
+                          </button>
+                        )}
                         <span className="shrink-0">{Math.round(generationProgress)}%</span>
                       </div>
                       <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">

@@ -17,6 +17,8 @@ from utils.alignment import (
 import scipy.io.wavfile as wavfile
 from utils.text import split_text_into_chunks
 from pydub import AudioSegment
+import asyncio
+from fastapi.responses import StreamingResponse
 
 app = FastAPI(title="Aura Voice Studio API")
 
@@ -133,6 +135,185 @@ def migrate_legacy_clips():
 # Run migration on server startup to import pre-existing files
 migrate_legacy_clips()
 
+# -------------------------------------------------------------
+# TASK QUEUE & LOAD MANAGER CONFIGURATION
+# -------------------------------------------------------------
+class SynthesisJob:
+    def __init__(self, job_id, text, model_type, reference_id, speed, temperature, cfg_strength, is_stream):
+        self.job_id = job_id
+        self.text = text
+        self.model_type = model_type
+        self.reference_id = reference_id
+        self.speed = speed
+        self.temperature = temperature
+        self.cfg_strength = cfg_strength
+        self.is_stream = is_stream
+        self.update_queue = asyncio.Queue()
+        self.done = False
+
+synthesis_queue = asyncio.Queue()
+active_job_id = None
+
+def execute_blocking_tts(model_type, chunk, effective_ref_path, language, chunk_file, effective_ref_text, speed, temperature, cfg_strength):
+    model = model_manager.load_model(model_type)
+    if model_type == "xtts":
+        if model is None:
+            raise Exception("XTTS model failed to load")
+        model.tts_to_file(
+            text=chunk,
+            speaker_wav=effective_ref_path,
+            language=language,
+            file_path=chunk_file,
+            speed=speed,
+            temperature=temperature,
+        )
+    elif model_type == "f5":
+        from f5_tts_mlx.generate import generate
+        generate(
+            generation_text=chunk,
+            ref_audio_path=effective_ref_path,
+            ref_audio_text=effective_ref_text,
+            output_path=chunk_file,
+            speed=speed,
+            cfg_strength=cfg_strength,
+        )
+
+async def run_synthesis_job(job: SynthesisJob):
+    ref_path = os.path.join(REFERENCES_DIR, f"{job.reference_id}.wav")
+    if not os.path.exists(ref_path):
+        await job.update_queue.put({"event": "error", "detail": "Reference audio not found"})
+        return
+
+    chunk_dir = chunk_dir_for_reference(REFERENCES_DIR, job.reference_id)
+    best_chunk = best_chunk_for_model(chunk_dir, job.model_type)
+
+    effective_ref_path = best_chunk.path if best_chunk and os.path.exists(best_chunk.path) else ref_path
+    effective_ref_text = best_chunk.transcript if best_chunk else ""
+
+    if not effective_ref_text:
+        tpath = _transcript_path(job.reference_id)
+        if os.path.exists(tpath):
+            try:
+                with open(tpath, "r", encoding="utf-8") as f:
+                    effective_ref_text = f.read().strip()
+            except Exception:
+                pass
+
+    text_chunks = split_text_into_chunks(job.text, max_chars=250)
+    total_chunks = len(text_chunks)
+    output_file = os.path.join(OUTPUT_DIR, f"{job.job_id}.wav")
+    temp_output_files = []
+
+    try:
+        await job.update_queue.put({"event": "started", "total_chunks": total_chunks})
+
+        for i, chunk in enumerate(text_chunks):
+            await job.update_queue.put({
+                "event": "progress",
+                "current_chunk": i + 1,
+                "total_chunks": total_chunks,
+                "text": chunk
+            })
+
+            chunk_file = os.path.join(TEMP_DIR, f"{job.job_id}_chunk_{i}.wav")
+
+            # Execute the heavy ML inference in a separate thread to keep the main event loop free
+            await asyncio.to_thread(
+                execute_blocking_tts,
+                job.model_type,
+                chunk,
+                effective_ref_path,
+                "en",
+                chunk_file,
+                effective_ref_text,
+                job.speed,
+                job.temperature,
+                job.cfg_strength
+            )
+
+            temp_output_files.append(chunk_file)
+
+            # Save the chunk wav to a public location so the frontend can stream-play it
+            chunk_public_dir = os.path.join(OUTPUT_DIR, "chunks")
+            os.makedirs(chunk_public_dir, exist_ok=True)
+            chunk_public_path = os.path.join(chunk_public_dir, f"{job.job_id}_chunk_{i}.wav")
+            shutil.copy(chunk_file, chunk_public_path)
+
+            # Send chunk completion event with the URL
+            await job.update_queue.put({
+                "event": "chunk_completed",
+                "chunk_index": i,
+                "chunk_url": f"/output/chunks/{job.job_id}_chunk_{i}.wav"
+            })
+
+        # Merge audio chunks
+        await job.update_queue.put({"event": "merging"})
+        
+        if len(temp_output_files) == 1:
+            shutil.move(temp_output_files[0], output_file)
+        else:
+            def merge_files(files, dest):
+                combined = AudioSegment.empty()
+                for file in files:
+                    segment = AudioSegment.from_wav(file)
+                    combined += segment
+                    if os.path.exists(file):
+                        os.remove(file)
+                combined.export(dest, format="wav")
+            await asyncio.to_thread(merge_files, temp_output_files, output_file)
+
+        # Save metadata
+        meta = load_metadata()
+        import time
+        meta["generations"].append({
+            "id": job.job_id,
+            "reference_id": job.reference_id,
+            "text": job.text,
+            "model_type": job.model_type,
+            "timestamp": int(time.time()),
+            "url": f"/output/{job.job_id}.wav",
+            "used_aligned_chunk": best_chunk is not None,
+            "chunk_index": best_chunk.index if best_chunk else None,
+        })
+        save_metadata(meta)
+
+        await job.update_queue.put({
+            "event": "completed",
+            "url": f"/output/{job.job_id}.wav",
+            "id": job.job_id,
+            "text": job.text
+        })
+
+    except Exception as e:
+        for f in temp_output_files:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                except:
+                    pass
+        raise e
+
+async def synthesis_worker():
+    global active_job_id
+    while True:
+        job = await synthesis_queue.get()
+        active_job_id = job.job_id
+        try:
+            await run_synthesis_job(job)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            await job.update_queue.put({"event": "error", "detail": str(e)})
+        finally:
+            job.done = True
+            active_job_id = None
+            synthesis_queue.task_done()
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(synthesis_worker())
+
+
 try:
     import multipart  # noqa: F401
 
@@ -228,231 +409,77 @@ if _MULTIPART_AVAILABLE:
         text: str = Form(...),
         model_type: str = Form("xtts"),
         reference_id: str = Form(...),
+        speed: float = Form(1.0),
+        temperature: float = Form(0.75),
+        cfg_strength: float = Form(2.0),
     ):
         """
-        Synthesizes speech using the selected model and reference audio.
-
-        Uses the best-matching aligned chunk (from the alignment pipeline) as the
-        reference, providing significantly better speaker conditioning than using
-        the raw full-length audio file.
+        Synthesizes speech using the selected model and reference audio by enqueuing
+        the task in the global sequential queue and returning the file on completion.
         """
-        if model_type not in {"xtts", "f5"}:
-            raise HTTPException(status_code=400, detail=f"Unsupported model_type: {model_type}")
+        job_id = str(uuid.uuid4())
+        job = SynthesisJob(
+            job_id=job_id,
+            text=text,
+            model_type=model_type,
+            reference_id=reference_id,
+            speed=speed,
+            temperature=temperature,
+            cfg_strength=cfg_strength,
+            is_stream=False
+        )
 
-        ref_path = os.path.join(REFERENCES_DIR, f"{reference_id}.wav")
-        if not os.path.exists(ref_path):
-            raise HTTPException(status_code=404, detail="Reference audio not found")
+        await synthesis_queue.put(job)
 
-        # Resolve best chunk (falls back to full reference if no chunks exist)
-        chunk_dir = chunk_dir_for_reference(REFERENCES_DIR, reference_id)
-        best_chunk = best_chunk_for_model(chunk_dir, model_type)
-
-        effective_ref_path = best_chunk.path if best_chunk and os.path.exists(best_chunk.path) else ref_path
-        effective_ref_text = best_chunk.transcript if best_chunk else ""
-
-        # Legacy fallback: read old .txt file if alignment chunking wasn't run
-        if not effective_ref_text:
-            tpath = _transcript_path(reference_id)
-            if os.path.exists(tpath):
-                try:
-                    with open(tpath, "r", encoding="utf-8") as f:
-                        effective_ref_text = f.read().strip()
-                except Exception:
-                    pass
-
-        try:
-            try:
-                model = model_manager.load_model(model_type)
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                raise HTTPException(status_code=500, detail=str(e))
-
-            output_id = str(uuid.uuid4())
-            output_file = os.path.join(OUTPUT_DIR, f"{output_id}.wav")
-
-            # Chunk text for stability
-            text_chunks = split_text_into_chunks(text, max_chars=250)
-            temp_output_files = []
-
-            for i, chunk in enumerate(text_chunks):
-                chunk_file = os.path.join(TEMP_DIR, f"{output_id}_chunk_{i}.wav")
-                
-                if model_type == "xtts":
-                    if model is None:
-                        raise HTTPException(status_code=500, detail="XTTS model failed to load")
-                    model.tts_to_file(
-                        text=chunk,
-                        speaker_wav=effective_ref_path,
-                        language="en",
-                        file_path=chunk_file,
-                    )
-                elif model_type == "f5":
-                    from f5_tts_mlx.generate import generate
-                    if not effective_ref_text:
-                        effective_ref_text = transcribe_audio(effective_ref_path)
-                    generate(
-                        generation_text=chunk,
-                        ref_audio_path=effective_ref_path,
-                        ref_audio_text=effective_ref_text,
-                        output_path=chunk_file,
-                    )
-                
-                temp_output_files.append(chunk_file)
-
-            # Merge audio chunks
-            if len(temp_output_files) == 1:
-                shutil.move(temp_output_files[0], output_file)
-            else:
-                combined = AudioSegment.empty()
-                for chunk_file in temp_output_files:
-                    segment = AudioSegment.from_wav(chunk_file)
-                    combined += segment
-                    # Cleanup chunk file
-                    os.remove(chunk_file)
-                combined.export(output_file, format="wav")
-
-            # Save metadata
-            meta = load_metadata()
-            import time
-            meta["generations"].append({
-                "id": output_id,
-                "reference_id": reference_id,
-                "text": text,
-                "model_type": model_type,
-                "timestamp": int(time.time()),
-                "url": f"/output/{output_id}.wav",
-                "used_aligned_chunk": best_chunk is not None,
-                "chunk_index": best_chunk.index if best_chunk else None,
-            })
-            save_metadata(meta)
-
-            return FileResponse(output_file, media_type="audio/wav")
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=str(e))
+        while True:
+            event_data = await job.update_queue.get()
+            event = event_data.get("event")
+            if event == "completed":
+                output_file = os.path.join(OUTPUT_DIR, f"{job_id}.wav")
+                return FileResponse(output_file, media_type="audio/wav")
+            elif event == "error":
+                raise HTTPException(status_code=500, detail=event_data.get("detail"))
 
     @app.post("/synthesize-stream")
     async def synthesize_stream(
         text: str = Form(...),
         model_type: str = Form("xtts"),
         reference_id: str = Form(...),
+        speed: float = Form(1.0),
+        temperature: float = Form(0.75),
+        cfg_strength: float = Form(2.0),
     ):
         """
         Synthesizes speech using the selected model and reference audio, yielding
-        real-time progress updates chunk by chunk as a Server-Sent Events (SSE) stream.
+        real-time progress updates and queue position as an SSE stream.
         """
-        if model_type not in {"xtts", "f5"}:
-            raise HTTPException(status_code=400, detail=f"Unsupported model_type: {model_type}")
-
-        ref_path = os.path.join(REFERENCES_DIR, f"{reference_id}.wav")
-        if not os.path.exists(ref_path):
-            raise HTTPException(status_code=404, detail="Reference audio not found")
-
-        # Resolve best chunk (falls back to full reference if no chunks exist)
-        chunk_dir = chunk_dir_for_reference(REFERENCES_DIR, reference_id)
-        best_chunk = best_chunk_for_model(chunk_dir, model_type)
-
-        effective_ref_path = best_chunk.path if best_chunk and os.path.exists(best_chunk.path) else ref_path
-        effective_ref_text = best_chunk.transcript if best_chunk else ""
-
-        # Legacy fallback: read old .txt file if alignment chunking wasn't run
-        if not effective_ref_text:
-            tpath = _transcript_path(reference_id)
-            if os.path.exists(tpath):
-                try:
-                    with open(tpath, "r", encoding="utf-8") as f:
-                        effective_ref_text = f.read().strip()
-                except Exception:
-                    pass
-
-        # Chunk text for stability
-        text_chunks = split_text_into_chunks(text, max_chars=250)
-        total_chunks = len(text_chunks)
-        output_id = str(uuid.uuid4())
-        output_file = os.path.join(OUTPUT_DIR, f"{output_id}.wav")
+        job_id = str(uuid.uuid4())
+        job = SynthesisJob(
+            job_id=job_id,
+            text=text,
+            model_type=model_type,
+            reference_id=reference_id,
+            speed=speed,
+            temperature=temperature,
+            cfg_strength=cfg_strength,
+            is_stream=True
+        )
 
         async def event_generator():
-            temp_output_files = []
-            try:
-                # Load model
-                model = model_manager.load_model(model_type)
+            # Get initial queue position
+            qsize = synthesis_queue.qsize()
+            pos = qsize + (1 if active_job_id is not None else 0)
+            
+            await synthesis_queue.put(job)
+            
+            if pos > 0:
+                yield f"data: {json.dumps({'event': 'queued', 'position': pos})}\n\n"
                 
-                yield f"data: {json.dumps({'event': 'started', 'total_chunks': total_chunks})}\n\n"
-                
-                for i, chunk in enumerate(text_chunks):
-                    yield f"data: {json.dumps({'event': 'progress', 'current_chunk': i + 1, 'total_chunks': total_chunks, 'text': chunk})}\n\n"
-                    
-                    chunk_file = os.path.join(TEMP_DIR, f"{output_id}_chunk_{i}.wav")
-                    
-                    if model_type == "xtts":
-                        if model is None:
-                            raise Exception("XTTS model failed to load")
-                        model.tts_to_file(
-                            text=chunk,
-                            speaker_wav=effective_ref_path,
-                            language="en",
-                            file_path=chunk_file,
-                        )
-                    elif model_type == "f5":
-                        from f5_tts_mlx.generate import generate
-                        if not effective_ref_text:
-                            effective_ref_text = transcribe_audio(effective_ref_path)
-                        generate(
-                            generation_text=chunk,
-                            ref_audio_path=effective_ref_path,
-                            ref_audio_text=effective_ref_text,
-                            output_path=chunk_file,
-                        )
-                    
-                    temp_output_files.append(chunk_file)
-
-                # Merge audio chunks
-                yield f"data: {json.dumps({'event': 'merging'})}\n\n"
-                
-                if len(temp_output_files) == 1:
-                    shutil.move(temp_output_files[0], output_file)
-                else:
-                    combined = AudioSegment.empty()
-                    for chunk_file in temp_output_files:
-                        segment = AudioSegment.from_wav(chunk_file)
-                        combined += segment
-                        # Cleanup chunk file
-                        os.remove(chunk_file)
-                    combined.export(output_file, format="wav")
-
-                # Save metadata
-                meta = load_metadata()
-                import time
-                meta["generations"].append({
-                    "id": output_id,
-                    "reference_id": reference_id,
-                    "text": text,
-                    "model_type": model_type,
-                    "timestamp": int(time.time()),
-                    "url": f"/output/{output_id}.wav",
-                    "used_aligned_chunk": best_chunk is not None,
-                    "chunk_index": best_chunk.index if best_chunk else None,
-                })
-                save_metadata(meta)
-
-                yield f"data: {json.dumps({'event': 'completed', 'url': f'/output/{output_id}.wav', 'id': output_id, 'text': text})}\n\n"
-
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                # Clean up any temp files created
-                for f in temp_output_files:
-                    if os.path.exists(f):
-                        try:
-                            os.remove(f)
-                        except:
-                            pass
-                yield f"data: {json.dumps({'event': 'error', 'detail': str(e)})}\n\n"
+            while True:
+                event_data = await job.update_queue.get()
+                yield f"data: {json.dumps(event_data)}\n\n"
+                if event_data.get("event") in ("completed", "error"):
+                    break
 
         from fastapi.responses import StreamingResponse
         return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -539,6 +566,8 @@ async def get_library():
         gens.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
         
         profile = dict(ref_data)
+        profile["tags"] = ref_data.get("tags", [])
+        profile["category"] = ref_data.get("category", "General")
         profile["generations"] = gens
         profiles.append(profile)
         
@@ -553,6 +582,18 @@ async def serve_reference_audio(filename: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Reference audio not found")
     return FileResponse(file_path, media_type="audio/wav")
+
+@app.put("/library/profile/{ref_id}/metadata")
+async def update_profile_metadata(ref_id: str, payload: dict):
+    """Updates custom metadata (tags and category) for a voice profile."""
+    meta = load_metadata()
+    if ref_id not in meta.get("references", {}):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    meta["references"][ref_id]["tags"] = payload.get("tags", [])
+    meta["references"][ref_id]["category"] = payload.get("category", "General")
+    save_metadata(meta)
+    return {"status": "success"}
 
 @app.delete("/library/profile/{ref_id}")
 async def delete_profile(ref_id: str):

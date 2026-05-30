@@ -33,6 +33,7 @@ export default function App() {
 
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationStatus, setGenerationStatus] = useState('');
+  const [lastChunkUrl, setLastChunkUrl] = useState(null);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -69,17 +70,21 @@ export default function App() {
     }
   };
 
-  const handleSynthesize = async () => {
+  const handleSynthesize = async (speed = 1.0, temperature = 0.75, cfgStrength = 2.0) => {
     if (!inputText || !referenceId) return;
 
     setIsGenerating(true);
     setGenerationProgress(0);
     setGenerationStatus('Initializing synthesis engine...');
+    setLastChunkUrl(null);
 
     const formData = new FormData();
     formData.append('text', inputText);
     formData.append('model_type', activeModel);
     formData.append('reference_id', referenceId);
+    formData.append('speed', speed);
+    formData.append('temperature', temperature);
+    formData.append('cfg_strength', cfgStrength);
 
     try {
       const response = await fetch(`${API_BASE}/synthesize-stream`, {
@@ -101,7 +106,7 @@ export default function App() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           const trimmed = line.trim();
@@ -109,13 +114,17 @@ export default function App() {
             try {
               const data = JSON.parse(trimmed.slice(6));
               
-              if (data.event === 'started') {
+              if (data.event === 'queued') {
+                setGenerationStatus(`Waiting in queue. Position: ${data.position}...`);
+              } else if (data.event === 'started') {
                 setGenerationStatus(`Found ${data.total_chunks} text segment(s). Starting synthesis...`);
                 setGenerationProgress(2);
               } else if (data.event === 'progress') {
                 const percent = Math.round(((data.current_chunk - 1) / data.total_chunks) * 90) + 5;
                 setGenerationStatus(`Generating audio segment ${data.current_chunk} of ${data.total_chunks}...`);
                 setGenerationProgress(percent);
+              } else if (data.event === 'chunk_completed') {
+                setLastChunkUrl(`${API_BASE}${data.chunk_url}`);
               } else if (data.event === 'merging') {
                 setGenerationStatus('Blending segments into master audio file...');
                 setGenerationProgress(95);
@@ -176,6 +185,8 @@ export default function App() {
               setNowPlaying={setNowPlaying}
               generationProgress={generationProgress}
               generationStatus={generationStatus}
+              activeModel={activeModel}
+              lastChunkUrl={lastChunkUrl}
             />
         );
       case 'Library':
@@ -212,6 +223,8 @@ export default function App() {
               setNowPlaying={setNowPlaying}
               generationProgress={generationProgress}
               generationStatus={generationStatus}
+              activeModel={activeModel}
+              lastChunkUrl={lastChunkUrl}
             />
         );
     }

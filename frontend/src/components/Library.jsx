@@ -24,6 +24,13 @@ export default function Library({
   const [selectedProfileId, setSelectedProfileId] = React.useState(null);
   const [reprocessingId, setReprocessingId] = React.useState(null);
 
+  // Search & Tagging states
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [categoryFilter, setCategoryFilter] = React.useState('All');
+  const [editingProfileId, setEditingProfileId] = React.useState(null);
+  const [editTags, setEditTags] = React.useState('');
+  const [editCategory, setEditCategory] = React.useState('General');
+
   const fetchProfiles = async () => {
     try {
       const res = await axios.get(`${API_BASE}/library`);
@@ -35,6 +42,25 @@ export default function Library({
       console.error("Failed to fetch library profiles", err);
     }
   };
+
+  const startEditing = (e, profile) => {
+    e.stopPropagation();
+    setEditingProfileId(profile.id);
+    setEditCategory(profile.category || 'General');
+    setEditTags(profile.tags ? profile.tags.join(', ') : '');
+  };
+
+  const filteredProfiles = profiles.filter(profile => {
+    const matchesSearch = 
+      (profile.transcript && profile.transcript.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (profile.tags && profile.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())));
+      
+    const matchesCategory = 
+      categoryFilter === 'All' || 
+      (profile.category || 'General') === categoryFilter;
+      
+    return matchesSearch && matchesCategory;
+  });
 
   React.useEffect(() => {
     fetchProfiles();
@@ -108,12 +134,38 @@ export default function Library({
       <div className="flex-1 flex gap-8 min-h-0">
         {/* LEFT PANE: VOICE PROFILES */}
         <div className="w-1/3 flex flex-col gap-4 border-r border-white/5 pr-8 overflow-y-auto no-scrollbar pb-12">
-          <h3 className="font-bold tracking-tight uppercase text-sm text-primary/80 mb-2 flex items-center gap-2">
+          <h3 className="font-bold tracking-tight uppercase text-sm text-primary/80 mb-1 flex items-center gap-2">
             <User size={18} /> Voice Profiles
           </h3>
+
+          {/* Search and Category Filters */}
+          <div className="space-y-3 mb-4">
+            <input 
+              type="text"
+              placeholder="Search by transcript or tag..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-white/5 border border-white/5 focus:border-primary/50 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 transition-all"
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest shrink-0">Filter:</span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="flex-1 bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs text-white cursor-pointer hover:bg-white/10 transition-all"
+              >
+                <option value="All">All Categories</option>
+                <option value="General">General</option>
+                <option value="Narrator">Narrator</option>
+                <option value="Assistant">Assistant</option>
+                <option value="Podcast">Podcast</option>
+                <option value="Custom">Custom</option>
+              </select>
+            </div>
+          </div>
           
           <AnimatePresence>
-            {profiles.length > 0 ? profiles.map((profile) => (
+            {filteredProfiles.length > 0 ? filteredProfiles.map((profile) => (
               <motion.div
                 key={profile.id}
                 initial={{ opacity: 0, x: -10 }}
@@ -140,12 +192,33 @@ export default function Library({
                       <p className="text-[10px] font-black text-primary/60 uppercase tracking-[0.2em]">{profile.generations.length} Generations</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={(e) => deleteProfile(e, profile.id)}
-                    className="p-2 rounded-xl text-white/10 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={(e) => startEditing(e, profile)}
+                      className="px-2 py-1 bg-white/5 border border-white/5 hover:bg-primary/20 hover:border-primary/30 rounded-xl text-white/40 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest"
+                      title="Edit metadata"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      onClick={(e) => deleteProfile(e, profile.id)}
+                      className="p-2 rounded-xl text-white/10 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Categories & Tags Display */}
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  <span className="px-2 py-0.5 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-[8px] font-black uppercase tracking-widest">
+                    {profile.category || 'General'}
+                  </span>
+                  {profile.tags && profile.tags.map((tag, idx) => (
+                    <span key={idx} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/40 text-[8px] font-bold uppercase tracking-wider">
+                      #{tag}
+                    </span>
+                  ))}
                 </div>
 
                 {/* Alignment badge row */}
@@ -165,6 +238,66 @@ export default function Library({
                     </span>
                   )}
                 </div>
+
+                {/* Metadata Editor form */}
+                {editingProfileId === profile.id ? (
+                  <div className="bg-black/20 p-4 rounded-2xl border border-white/5 mb-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-white/30 uppercase tracking-widest">Category</label>
+                      <select 
+                        value={editCategory} 
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
+                      >
+                        <option value="General">General</option>
+                        <option value="Narrator">Narrator</option>
+                        <option value="Assistant">Assistant</option>
+                        <option value="Podcast">Podcast</option>
+                        <option value="Custom">Custom</option>
+                      </select>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-white/30 uppercase tracking-widest">Tags (comma-separated)</label>
+                      <input 
+                        type="text" 
+                        value={editTags} 
+                        onChange={(e) => setEditTags(e.target.value)}
+                        placeholder="energetic, calm, formal"
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                    
+                    <div className="flex gap-2 pt-1">
+                      <button 
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const tagsArray = editTags.split(',').map(t => t.trim()).filter(Boolean);
+                          try {
+                            await axios.put(`${API_BASE}/library/profile/${profile.id}/metadata`, {
+                              tags: tagsArray,
+                              category: editCategory
+                            });
+                            setEditingProfileId(null);
+                            await fetchProfiles();
+                          } catch (err) {
+                            console.error(err);
+                            alert("Failed to update metadata");
+                          }
+                        }}
+                        className="flex-1 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all"
+                      >
+                        Save
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setEditingProfileId(null); }}
+                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/40 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
 
                 <p className="text-sm font-medium text-white/80 line-clamp-2 italic leading-relaxed mb-4">
                   "{profile.transcript || 'Unknown Reference'}"
