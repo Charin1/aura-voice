@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   Library as LibraryIcon, Play, Pause, Download, Trash2,
   AudioWaveform as Waveform, User, ChevronRight, MessageSquare, Mic2,
-  Sparkles, RefreshCw, CheckCircle2
+  Sparkles, RefreshCw, CheckCircle2, Search, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -207,28 +207,44 @@ export default function Library({
           </h3>
 
           {/* Search and Category Filters */}
-          <div className="space-y-3 mb-4">
-            <input 
-              type="text"
-              placeholder="Search by transcript or tag..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white/5 border border-white/5 focus:border-primary/50 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 transition-all"
-            />
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest shrink-0">Filter:</span>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="flex-1 bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs text-white cursor-pointer hover:bg-white/10 transition-all"
-              >
-                <option value="All">All Categories</option>
-                <option value="General">General</option>
-                <option value="Narrator">Narrator</option>
-                <option value="Assistant">Assistant</option>
-                <option value="Podcast">Podcast</option>
-                <option value="Custom">Custom</option>
-              </select>
+          <div className="space-y-4 mb-4">
+            <div className="relative flex items-center">
+              <Search size={14} className="absolute left-4 text-white/40" />
+              <input 
+                type="text"
+                placeholder="Search by transcript or tag..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-white/5 border border-white/5 focus:bg-white/10 focus:border-primary/50 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-white/45 transition-all outline-none"
+              />
+              {searchTerm && (
+                <button 
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 p-1 rounded-md text-white/40 hover:text-white hover:bg-white/5 transition-all"
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.15em] pl-1">Category filter</span>
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 pr-1">
+                {['All', 'General', 'Narrator', 'Assistant', 'Podcast', 'Custom'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategoryFilter(cat)}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all duration-300 shrink-0 ${
+                      categoryFilter === cat
+                        ? 'bg-primary/20 text-primary border-primary/40 shadow-[0_0_15px_rgba(186,158,255,0.15)]'
+                        : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           
@@ -238,39 +254,40 @@ export default function Library({
                 key={profile.id}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
+                whileHover={{ y: -2 }}
                 onClick={() => setSelectedProfileId(profile.id)}
-                className={`p-6 rounded-3xl border transition-all cursor-pointer group ${selectedProfileId === profile.id ? 'bg-white/10 border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.05)]' : 'bg-white/5 border-white/5 hover:bg-white/[0.07] hover:border-white/10'}`}
+                className={`p-6 rounded-3xl border transition-all cursor-pointer group ${selectedProfileId === profile.id ? 'bg-white/10 border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.5),_0_0_1px_rgba(186,158,255,0.2)]' : 'bg-white/5 border-white/5 hover:bg-white/[0.08] hover:border-white/10 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]'}`}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     {profile.url ? (
                       <button 
                         onClick={(e) => { e.stopPropagation(); handlePlay(`ref_${profile.id}`, API_BASE + profile.url, "Reference Audio", profile.transcript); }}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${nowPlaying?.id === `ref_${profile.id}` ? 'bg-primary/20 text-primary border border-primary/40' : 'bg-white/10 text-white/40 hover:text-white/80 hover:bg-white/20'}`}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${nowPlaying?.id === `ref_${profile.id}` ? 'bg-primary/20 text-primary border border-primary/45' : 'bg-white/10 text-white/50 hover:text-white hover:bg-white/20'}`}
                       >
                         {nowPlaying?.id === `ref_${profile.id}` && isGlobalPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
                       </button>
                     ) : (
-                      <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-white/30 uppercase tracking-[0.15em]">
+                      <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-white/40 uppercase tracking-[0.15em]">
                         Legacy
                       </div>
                     )}
                     <div>
-                      <p className="text-xs font-bold text-white/30 uppercase tracking-widest">{new Date(profile.timestamp * 1000).toLocaleDateString()}</p>
-                      <p className="text-[10px] font-black text-primary/60 uppercase tracking-[0.2em]">{profile.generations.length} Generations</p>
+                      <p className="text-xs font-bold text-white/60 uppercase tracking-widest">{new Date(profile.timestamp * 1000).toLocaleDateString()}</p>
+                      <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mt-0.5">{profile.generations.length} Generations</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <button 
                       onClick={(e) => startEditing(e, profile)}
-                      className="px-2 py-1 bg-white/5 border border-white/5 hover:bg-primary/20 hover:border-primary/30 rounded-xl text-white/40 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest"
+                      className="px-2.5 py-1.5 bg-white/5 border border-white/5 hover:bg-primary/20 hover:border-primary/30 rounded-xl text-white/50 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest"
                       title="Edit metadata"
                     >
                       Edit
                     </button>
                     <button 
                       onClick={(e) => deleteProfile(e, profile.id)}
-                      className="p-2 rounded-xl text-white/10 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      className="p-2 rounded-xl text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -279,11 +296,11 @@ export default function Library({
 
                 {/* Categories & Tags Display */}
                 <div className="flex flex-wrap gap-1.5 mb-3">
-                  <span className="px-2 py-0.5 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-[8px] font-black uppercase tracking-widest">
+                  <span className="px-2 py-0.5 rounded-full bg-secondary/15 border border-secondary/30 text-secondary text-[8px] font-black uppercase tracking-widest">
                     {profile.category || 'General'}
                   </span>
                   {profile.tags && profile.tags.map((tag, idx) => (
-                    <span key={idx} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/40 text-[8px] font-bold uppercase tracking-wider">
+                    <span key={idx} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-primary hover:border-primary/25 transition-all text-[8px] font-bold uppercase tracking-wider">
                       #{tag}
                     </span>
                   ))}
@@ -292,16 +309,16 @@ export default function Library({
                 {/* Alignment badge row */}
                 <div className="flex items-center gap-2 mb-3">
                   {profile.alignment_available ? (
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[9px] font-black uppercase tracking-widest">
-                      <CheckCircle2 size={10} /> Aligned
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black uppercase tracking-widest shadow-sm">
+                      <CheckCircle2 size={9} /> Aligned
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400/70 text-[9px] font-black uppercase tracking-widest">
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[8px] font-black uppercase tracking-widest shadow-sm">
                       Legacy
                     </span>
                   )}
                   {profile.chunk_count > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/30 text-[9px] font-black uppercase tracking-widest">
+                    <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/50 text-[8px] font-black uppercase tracking-widest">
                       {profile.chunk_count} chunk{profile.chunk_count !== 1 ? 's' : ''}
                     </span>
                   )}
@@ -385,7 +402,7 @@ export default function Library({
                         setReferenceUrl(API_BASE + profile.url);
                         onGoToStudio();
                       }}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all"
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary/15 border border-primary/30 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary/25 hover:shadow-[0_0_15px_rgba(186,158,255,0.25)] transition-all"
                     >
                       <Mic2 size={14} /> Use in Studio
                     </button>
@@ -395,7 +412,7 @@ export default function Library({
                       onClick={(e) => reprocessReference(e, profile.id)}
                       disabled={reprocessingId === profile.id}
                       title="Re-run WhisperX forced alignment on this reference"
-                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400/80 text-[10px] font-black uppercase tracking-widest hover:bg-amber-500/20 transition-all disabled:opacity-50 disabled:cursor-wait"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/35 text-amber-400 text-[10px] font-black uppercase tracking-widest hover:bg-amber-500/25 transition-all disabled:opacity-50 disabled:cursor-wait"
                     >
                       <RefreshCw size={12} className={reprocessingId === profile.id ? 'animate-spin' : ''} />
                       {reprocessingId === profile.id ? 'Aligning…' : 'Re-process'}
@@ -437,23 +454,28 @@ export default function Library({
                             <Waveform size={20} className="text-white/20 group-hover:text-secondary transition-all" />
                           </div>
                           <div className="flex-1 space-y-2 overflow-hidden w-full">
-                            <div className="flex items-center gap-2.5 flex-wrap">
-                              <span className="px-2 py-0.5 bg-secondary/10 text-secondary text-[8px] font-black rounded-full border border-secondary/20">{gen.model_type.toUpperCase()}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {gen.model_type === 'xtts' ? (
+                                <span className="px-2 py-0.5 bg-primary/10 text-primary text-[8px] font-black rounded-full border border-primary/20 shadow-sm">XTTS-v2</span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-secondary/15 text-secondary text-[8px] font-black rounded-full border border-secondary/35 shadow-sm">F5-MLX</span>
+                              )}
+                              
                               {gen.speed && (
-                                <span className="px-2 py-0.5 bg-white/5 text-white/50 text-[8px] font-black rounded-full border border-white/10">{gen.speed}x Speed</span>
+                                <span className="px-2 py-0.5 bg-white/5 text-white/70 text-[8px] font-black rounded-full border border-white/10">{gen.speed}x Speed</span>
                               )}
                               {gen.model_type === 'xtts' && gen.temperature && (
-                                <span className="px-2 py-0.5 bg-white/5 text-white/50 text-[8px] font-black rounded-full border border-white/10">Temp: {gen.temperature}</span>
+                                <span className="px-2 py-0.5 bg-white/5 text-white/70 text-[8px] font-black rounded-full border border-white/10">Temp: {gen.temperature}</span>
                               )}
                               {gen.model_type === 'f5' && gen.cfg_strength && (
-                                <span className="px-2 py-0.5 bg-white/5 text-white/50 text-[8px] font-black rounded-full border border-white/10">CFG: {gen.cfg_strength}</span>
+                                <span className="px-2 py-0.5 bg-white/5 text-white/70 text-[8px] font-black rounded-full border border-white/10">CFG: {gen.cfg_strength}</span>
                               )}
                               {gen.used_aligned_chunk && (
-                                <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[8px] font-black rounded-full border border-emerald-500/20">
+                                <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[8px] font-black rounded-full border border-emerald-500/25">
                                   <Sparkles size={8} /> Aligned
                                 </span>
                               )}
-                              <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">{new Date(gen.timestamp * 1000).toLocaleString()}</span>
+                              <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">{new Date(gen.timestamp * 1000).toLocaleString()}</span>
                             </div>
                             <SyncedText 
                               text={gen.text} 
@@ -470,16 +492,16 @@ export default function Library({
                           <div className="flex gap-2">
                             <button 
                               onClick={() => handlePlay(`gen_${gen.id}`, API_BASE + gen.url, "Generation", gen.text)} 
-                              className={`p-3 rounded-xl transition-all ${nowPlaying?.id === `gen_${gen.id}` ? 'bg-primary/20 text-primary' : 'hover:bg-white/10 text-white/40'}`}
+                              className={`p-3 rounded-xl transition-all ${nowPlaying?.id === `gen_${gen.id}` ? 'bg-primary/20 text-primary' : 'hover:bg-white/10 text-white/50'}`}
                             >
                               {nowPlaying?.id === `gen_${gen.id}` && isGlobalPlaying ? <Pause size={18} /> : <Play size={18} />}
                             </button>
                             <a href={API_BASE + gen.url} download={`aura_${gen.id}.wav`} className="p-3 hover:bg-white/10 rounded-xl transition-all">
-                              <Download size={18} className="text-white/40" />
+                              <Download size={18} className="text-white/50 hover:text-white" />
                             </a>
                             <button 
                               onClick={(e) => deleteGeneration(e, gen.id)}
-                              className="p-3 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              className="p-3 rounded-xl text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all"
                             >
                               <Trash2 size={18} />
                             </button>

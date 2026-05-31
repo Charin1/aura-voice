@@ -1,9 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { 
-  Mic, Upload, ChevronRight, RefreshCw, AudioWaveform as WaveformIcon, Activity, Play, Pause, Download
+  Mic, Upload, ChevronRight, RefreshCw, AudioWaveform as WaveformIcon, Activity, Play, Pause, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import AudioPlayer from './AudioPlayer';
 
 const WaveformVisualizer = ({ isActive }) => {
   const bars = Array.from({ length: 32 });
@@ -179,70 +178,86 @@ export default function Studio({
     }
   };
 
+  // Range slider dynamic percentage calculator for custom active track gradients
+  const speedPercent = ((speed - 0.5) / 1.5) * 100;
+  const tempPercent = ((temperature - 0.1) / 1.1) * 100;
+  const cfgPercent = ((cfgStrength - 1.0) / 3.0) * 100;
+
   return (
     <div className="flex-1 flex flex-col px-12 pt-12 pb-56 gap-12 z-10 relative overflow-y-auto no-scrollbar">
       <header className="flex justify-between items-start">
-        <div>
+        <div className="space-y-1">
           <motion.h2 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-5xl font-black tracking-tighter mb-3 font-headline bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50"
+            className="text-5xl font-black tracking-tighter mb-2 font-headline bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/70"
           >
             Voice Studio
           </motion.h2>
-          <p className="text-white/30 text-lg font-medium max-w-md leading-relaxed">
-            Craft the <span className="text-primary/60 italic">ethereal echo</span> of any voice with machine precision.
+          <p className="text-white/60 text-[15px] font-normal leading-relaxed max-w-md">
+            Craft the <span className="text-primary font-black italic">ethereal echo</span> of any voice with machine precision.
           </p>
         </div>
         <button 
           onClick={() => { setReferenceId(null); setTranscript(''); setInputText(''); }}
           title="Clear session"
-          className="p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-all hover:scale-110 active:scale-95 group"
+          className="p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 hover:border-white/15 transition-all hover:scale-105 active:scale-95 group shadow-lg"
         >
-          <RefreshCw size={22} className="text-white/30 group-hover:text-white/70 transition-colors" />
+          <RefreshCw size={20} className="text-white/60 group-hover:text-white transition-colors" />
         </button>
       </header>
 
       <section className="space-y-12 max-w-5xl">
         {/* UPLOAD / RECORD */}
         <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-3xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-          <div className="relative glass-card !p-12 border-dashed border-2 border-white/5 flex flex-col items-center justify-center min-h-[280px] text-center gap-6">
+          <div className="absolute -inset-1 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-[32px] blur-xl opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+          <div className="relative glass-card !p-12 border-dashed border-2 border-white/15 hover:border-primary/30 flex flex-col items-center justify-center min-h-[280px] text-center gap-6 transition-all duration-300">
             {referenceId ? (
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="w-full space-y-6"
+                className="w-full max-w-xl bg-black/40 border border-white/10 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-6 shadow-2xl relative overflow-hidden"
               >
-                <div className="flex flex-col items-center gap-4">
-                  <button 
-                    onClick={() => {
-                      if (nowPlaying?.id === 'reference') {
-                        setIsGlobalPlaying(!isGlobalPlaying);
-                      } else {
-                        setNowPlaying({
-                          url: referenceUrl,
-                          id: 'reference',
-                          title: "Reference Capture",
-                          subtext: transcript
-                        });
-                        setIsGlobalPlaying(true);
-                      }
-                    }}
-                    className={`w-16 h-16 rounded-full flex items-center justify-center border shadow-[0_0_40px_rgba(34,197,94,0.1)] transition-all hover:scale-105 active:scale-95 ${nowPlaying?.id === 'reference' ? 'bg-green-500/20 border-green-500/50' : 'bg-green-500/10 border-green-500/20'}`}
-                  >
-                    {nowPlaying?.id === 'reference' && isGlobalPlaying ? <Pause size={32} className="text-green-400" /> : <Play size={32} className="text-green-400 ml-1" />}
-                  </button>
-                  <div className="space-y-1">
-                    <p className="text-xl font-bold font-headline">Reference Captured</p>
-                    <p className="text-sm text-white/30 italic max-w-lg mx-auto">"{transcript}"</p>
+                {/* Ambient glow inside card */}
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent pointer-events-none" />
+                
+                <button 
+                  onClick={() => {
+                    if (nowPlaying?.id === 'reference') {
+                      setIsGlobalPlaying(!isGlobalPlaying);
+                    } else {
+                      setNowPlaying({
+                        url: referenceUrl,
+                        id: 'reference',
+                        title: "Reference Capture",
+                        subtext: transcript
+                      });
+                      setIsGlobalPlaying(true);
+                    }
+                  }}
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all hover:scale-105 active:scale-95 shrink-0 ${nowPlaying?.id === 'reference' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10 hover:border-white/20'}`}
+                >
+                  {nowPlaying?.id === 'reference' && isGlobalPlaying ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
+                </button>
+                
+                <div className="flex-1 text-left space-y-2 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-black uppercase tracking-wider text-white">Captured Reference</p>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm">
+                      <Sparkles size={8} /> Active
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/50 font-medium font-mono uppercase tracking-widest">ID: {referenceId.substring(0, 8)}...</p>
+                  <div className="max-h-16 overflow-y-auto custom-scrollbar pr-1 py-1">
+                    <p className="text-xs text-white/70 italic leading-relaxed">"{transcript}"</p>
                   </div>
                 </div>
+                
                 <button 
                   onClick={() => { setReferenceId(null); setTranscript(''); }}
-                  className="text-xs font-bold text-primary hover:text-primary/60 transition-colors uppercase tracking-widest"
+                  className="px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 hover:border-red-500/30 transition-all shrink-0 sm:self-start sm:ml-auto"
                 >
-                  Replace Reference
+                  Replace
                 </button>
               </motion.div>
             ) : (
@@ -250,27 +265,27 @@ export default function Studio({
                 <div className="flex gap-8">
                   <div 
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center border border-white/5 hover:border-primary/30 hover:bg-white/10 cursor-pointer group transition-all duration-500"
+                    className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center border border-white/5 hover:border-primary/40 hover:bg-primary/5 cursor-pointer group transition-all duration-500 shadow-md hover:shadow-[0_0_20px_rgba(186,158,255,0.15)]"
                   >
-                    <Upload size={32} className="text-primary/60 group-hover:text-primary group-hover:scale-110 transition-all" />
+                    <Upload size={28} className="text-white/60 group-hover:text-primary group-hover:scale-105 transition-all" />
                   </div>
                   <div 
                     onClick={toggleRecording}
-                    className={`w-20 h-20 rounded-3xl flex items-center justify-center border cursor-pointer transition-all duration-500 ${isRecording ? 'bg-red-500/20 border-red-500/50 animate-pulse' : 'bg-white/5 border-white/5 hover:border-secondary/30 hover:bg-white/10 group'}`}
+                    className={`w-20 h-20 rounded-3xl flex items-center justify-center border cursor-pointer transition-all duration-500 shadow-md ${isRecording ? 'bg-red-500/20 border-red-500/50 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'bg-white/5 border-white/5 hover:border-secondary/40 hover:bg-secondary/5 group'}`}
                   >
-                    <Mic size={32} className={isRecording ? 'text-red-500' : 'text-secondary/60 group-hover:text-secondary group-hover:scale-110 transition-all'} />
+                    <Mic size={28} className={isRecording ? 'text-red-500' : 'text-white/60 group-hover:text-secondary group-hover:scale-105 transition-all'} />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-2xl font-bold font-headline text-white/80">{isRecording ? "Recording..." : "Upload or Record"}</p>
-                  <p className="text-sm text-white/20 font-medium">Capture 6-10 seconds of clear vocal resonance</p>
+                  <p className="text-xl font-bold font-headline text-white/90">{isRecording ? "Recording Audio..." : "Upload or Record Reference"}</p>
+                  <p className="text-xs text-white/50 font-semibold max-w-sm mx-auto leading-relaxed">Provide 6-10 seconds of clear vocal resonance. F5-TTS works best with 8-15s, XTTS with 6-10s.</p>
                 </div>
                 <input type="file" ref={fileInputRef} className="hidden" accept="audio/*" onChange={handleFileUpload} />
               </>
             )}
-            {isUploading && <div className="absolute inset-0 bg-black/40 backdrop-blur-md flex flex-col items-center justify-center rounded-2xl gap-4">
-              <Activity size={48} className="animate-spin text-primary" />
-              <p className="text-sm font-bold tracking-widest text-primary/80 uppercase">Analyzing...</p>
+            {isUploading && <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center rounded-2xl gap-4 z-20">
+              <Activity size={40} className="animate-spin text-primary" />
+              <p className="text-xs font-black tracking-[0.25em] text-primary/95 uppercase">Analyzing Voice Alignment...</p>
             </div>}
           </div>
         </div>
@@ -279,15 +294,17 @@ export default function Studio({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
              <div className="flex justify-between items-end px-2">
-               <label className="text-xs font-black text-white/20 uppercase tracking-[0.3em]">Synthesis Engine</label>
-               <span className="text-[10px] font-bold text-white/10 uppercase tracking-widest">{inputText.length} / 1000 Tokens</span>
+               <label className="text-xs font-extrabold text-white/60 uppercase tracking-[0.2em]">Synthesis parameters</label>
+               <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">{inputText.length} / 1000 Tokens</span>
              </div>
              
              {/* Slider Controls */}
              <div className="flex flex-col sm:flex-row gap-6 bg-white/5 p-5 rounded-2xl border border-white/5 shadow-inner">
+               {/* Speed Control */}
                <div className="flex-1 space-y-3">
-                 <div className="flex justify-between text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                   <span>Speed ({speed}x)</span>
+                 <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-white/50">
+                   <span>Speed</span>
+                   <span className="px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 text-primary text-[10px] font-black shadow-sm">{speed.toFixed(1)}x</span>
                  </div>
                  <input 
                    type="range" 
@@ -296,14 +313,20 @@ export default function Studio({
                    step="0.1" 
                    value={speed} 
                    onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                   className="w-full accent-primary bg-white/10 rounded-lg appearance-none h-1 cursor-pointer"
+                   className="w-full cursor-pointer"
+                   style={{
+                     background: `linear-gradient(to right, #ba9eff 0%, #ba9eff ${speedPercent}%, rgba(255, 255, 255, 0.08) ${speedPercent}%, rgba(255, 255, 255, 0.08) 100%)`
+                   }}
                  />
+                 <p className="text-[10px] text-white/40 italic leading-snug">Tempo: controls speed of synthesis.</p>
                </div>
                
                {activeModel === 'xtts' ? (
+                 /* Temperature Control for XTTS */
                  <div className="flex-1 space-y-3">
-                   <div className="flex justify-between text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                     <span>Temperature ({temperature})</span>
+                   <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-white/50">
+                     <span>Temperature</span>
+                     <span className="px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 text-primary text-[10px] font-black shadow-sm">{temperature.toFixed(2)}</span>
                    </div>
                    <input 
                      type="range" 
@@ -312,13 +335,19 @@ export default function Studio({
                      step="0.05" 
                      value={temperature} 
                      onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                     className="w-full accent-secondary bg-white/10 rounded-lg appearance-none h-1 cursor-pointer"
+                     className="w-full cursor-pointer"
+                     style={{
+                       background: `linear-gradient(to right, #ba9eff 0%, #ba9eff ${tempPercent}%, rgba(255, 255, 255, 0.08) ${tempPercent}%, rgba(255, 255, 255, 0.08) 100%)`
+                     }}
                    />
+                   <p className="text-[10px] text-white/40 italic leading-snug">Creativity: controls variation and expressiveness.</p>
                  </div>
                ) : (
+                 /* Guidance Control for F5 */
                  <div className="flex-1 space-y-3">
-                   <div className="flex justify-between text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                     <span>Guidance Scale ({cfgStrength})</span>
+                   <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-white/50">
+                     <span>Guidance Scale</span>
+                     <span className="px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 text-primary text-[10px] font-black shadow-sm">{cfgStrength.toFixed(1)}</span>
                    </div>
                    <input 
                      type="range" 
@@ -327,28 +356,32 @@ export default function Studio({
                      step="0.1" 
                      value={cfgStrength} 
                      onChange={(e) => setCfgStrength(parseFloat(e.target.value))}
-                     className="w-full accent-secondary bg-white/10 rounded-lg appearance-none h-1 cursor-pointer"
+                     className="w-full cursor-pointer"
+                     style={{
+                       background: `linear-gradient(to right, #ba9eff 0%, #ba9eff ${cfgPercent}%, rgba(255, 255, 255, 0.08) ${cfgPercent}%, rgba(255, 255, 255, 0.08) 100%)`
+                     }}
                    />
+                   <p className="text-[10px] text-white/40 italic leading-snug">Adherence: controls prompt alignment vs variation.</p>
                  </div>
                )}
              </div>
 
               <div className="flex flex-col gap-4">
                 <textarea 
-                 value={inputText}
-                 onChange={(e) => setInputText(e.target.value)}
-                 placeholder="The silent whispers of the machine..."
-                 className="w-full min-h-[280px] input-glass leading-relaxed resize-none"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Enter the text for synthesis here..."
+                  className="w-full min-h-[280px] input-glass leading-relaxed resize-none border border-white/5 focus:border-primary/30 transition-all duration-300 placeholder:text-white/40"
                 />
                 <div className="flex justify-end">
                   <motion.button 
-                   whileHover={{ scale: 1.02 }}
-                   whileTap={{ scale: 0.98 }}
-                   onClick={onSynthesizeClick}
-                   disabled={isGenerating || !referenceId || !inputText}
-                   className={`flex items-center gap-4 py-4 px-10 rounded-2xl font-black shadow-2xl transition-all ${isGenerating ? 'bg-white/5 text-white/20' : 'btn-primary'}`}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={onSynthesizeClick}
+                    disabled={isGenerating || !referenceId || !inputText}
+                    className={`flex items-center gap-4 py-4 px-10 rounded-2xl font-black shadow-2xl transition-all ${isGenerating ? 'bg-white/5 text-white/20 border border-white/5 cursor-wait' : 'btn-primary'}`}
                   >
-                    {isGenerating ? <Activity size={20} className="animate-spin" /> : <ChevronRight size={20} />}
+                    {isGenerating ? <Activity size={20} className="animate-spin text-white/40" /> : <ChevronRight size={20} />}
                     {isGenerating ? 'ORCHESTRATING...' : 'GENERATE VOICE'}
                   </motion.button>
                 </div>
@@ -358,8 +391,8 @@ export default function Studio({
           {/* REAL-TIME AUDIO PLAYER & WAVEFORM */}
           <div className="space-y-6 flex flex-col">
             <div className="flex justify-between items-end px-2">
-               <label className="text-xs font-black text-white/20 uppercase tracking-[0.3em]">Output Monitor</label>
-               <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">{isGenerating ? "ACTIVE" : "STANDBY"}</span>
+               <label className="text-xs font-extrabold text-white/60 uppercase tracking-[0.2em]">Output Monitor</label>
+               <span className="text-[10px] font-black text-secondary uppercase tracking-widest">{isGenerating ? "ACTIVE" : "STANDBY"}</span>
             </div>
             
             <div className="glass-card flex-1 border border-white/5 flex flex-col justify-center gap-10 p-10 relative overflow-hidden">
@@ -374,10 +407,10 @@ export default function Studio({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="w-full space-y-3"
+                      className="w-full space-y-4"
                     >
                       <div className="flex justify-between text-[10px] font-black text-primary uppercase tracking-[0.2em] gap-4 items-center">
-                        <span className="truncate max-w-[65%]">{generationStatus || 'Orchestrating...'}</span>
+                        <span className="truncate max-w-[65%] text-white/80">{generationStatus || 'Orchestrating...'}</span>
                         {isPlayingChunks && (
                           <button 
                             onClick={stopChunkPlayback}
@@ -386,11 +419,11 @@ export default function Studio({
                             Mute Playback
                           </button>
                         )}
-                        <span className="shrink-0">{Math.round(generationProgress)}%</span>
+                        <span className="shrink-0 font-mono">{Math.round(generationProgress)}%</span>
                       </div>
-                      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/5">
                         <motion.div 
-                          className="h-full bg-gradient-to-r from-primary to-secondary shadow-[0_0_15px_rgba(58,223,250,0.6)]"
+                          className="h-full bg-gradient-to-r from-primary to-secondary rounded-full shadow-[0_0_15px_rgba(58,223,250,0.6)] animate-pulse-slow"
                           style={{ width: `${generationProgress}%` }}
                         />
                       </div>
@@ -419,16 +452,16 @@ export default function Studio({
                                 setIsGlobalPlaying(true);
                               }
                             }}
-                            className={`w-20 h-20 rounded-3xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(255,255,255,0.1)] group ${nowPlaying?.id === `gen_${history[0].id}` ? 'bg-primary text-white shadow-[0_0_40px_rgba(186,158,255,0.4)]' : 'bg-white text-black'}`}
+                            className={`w-20 h-20 rounded-3xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(255,255,255,0.05)] group ${nowPlaying?.id === `gen_${history[0].id}` ? 'bg-primary text-white shadow-[0_0_45px_rgba(186,158,255,0.4)]' : 'bg-white text-black'}`}
                           >
                             {nowPlaying?.id === `gen_${history[0].id}` && isGlobalPlaying ? <Pause size={32} /> : <Play size={32} className="ml-1" />}
                           </button>
-                          <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Click to preview master</p>
+                          <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">Click to preview master output</p>
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center gap-4 text-white/10 py-10">
-                          <WaveformIcon size={48} strokeWidth={1} />
-                          <p className="text-[10px] font-black uppercase tracking-[0.2em]">Awaiting Synthesis</p>
+                        <div className="flex flex-col items-center gap-4 text-white/40 py-10">
+                          <WaveformIcon size={44} strokeWidth={1.5} className="text-white/30" />
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/45">Awaiting Synthesis</p>
                         </div>
                       )}
                     </motion.div>
@@ -437,7 +470,7 @@ export default function Studio({
               </div>
 
               {/* Decorative Glow */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-secondary/10 rounded-full blur-[100px] pointer-events-none" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-secondary/5 rounded-full blur-[100px] pointer-events-none" />
             </div>
           </div>
         </div>

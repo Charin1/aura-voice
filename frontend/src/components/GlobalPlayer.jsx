@@ -144,10 +144,11 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
 
   return (
     <motion.div
-      initial={{ y: 80 }}
-      animate={{ y: 0 }}
-      exit={{ y: 80 }}
-      className="absolute bottom-0 left-0 w-full z-[100] bg-black/60 backdrop-blur-3xl border-t border-white/5"
+      initial={{ y: 120, x: '-50%' }}
+      animate={{ y: 0, x: '-50%' }}
+      exit={{ y: 120, x: '-50%' }}
+      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+      className="floating-player-capsule"
     >
       {/* Synced Transcript Drawer */}
       <AnimatePresence>
@@ -156,11 +157,11 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 130, opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-b border-white/5 bg-black/35 overflow-hidden relative"
+            className="border-b border-white/5 bg-black/35 overflow-hidden relative rounded-t-[24px]"
           >
             <div 
               ref={scrollContainerRef}
-              className="w-full h-full overflow-y-auto px-12 py-6 scroll-smooth text-center max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-y-2 relative"
+              className="w-full h-full overflow-y-auto px-12 py-6 scroll-smooth text-center max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-y-2 relative no-scrollbar"
               style={{ position: 'relative' }}
             >
               {words.length > 0 ? (
@@ -175,7 +176,7 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
                           ? 'text-primary font-black scale-110 drop-shadow-[0_0_15px_rgba(58,223,250,0.8)]' 
                           : idx < activeWordIndex
                             ? 'text-white/60 font-semibold'
-                            : 'text-white/20'
+                            : 'text-white/35'
                       }`}
                       style={{ marginRight: '0.4em' }}
                     >
@@ -184,7 +185,7 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
                   );
                 })
               ) : (
-                <span className="text-white/20 text-xs font-bold tracking-widest uppercase">No Text Available</span>
+                <span className="text-white/40 text-xs font-bold tracking-widest uppercase">No Text Available</span>
               )}
             </div>
             {/* Top/Bottom Fade Gradients */}
@@ -194,7 +195,7 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
         )}
       </AnimatePresence>
 
-      <div className="max-w-[1600px] mx-auto h-20 px-6 flex items-center justify-between gap-8">
+      <div className="max-w-[1600px] mx-auto h-20 px-8 flex items-center justify-between gap-8">
         
         {/* LEFT: INFO */}
         <div className="flex items-center gap-4 min-w-0 w-72 shrink-0">
@@ -203,7 +204,7 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="text-xs font-black text-white uppercase tracking-[0.2em] truncate">{clip.title || 'Playing'}</h4>
-            <p className="text-[10px] font-bold text-white/20 truncate uppercase tracking-widest mt-1">{clip.subtext || 'Audio Stream'}</p>
+            <p className="text-[10px] font-bold text-white/45 truncate uppercase tracking-widest mt-1.5">{clip.subtext || 'Audio Stream'}</p>
           </div>
         </div>
 
@@ -221,11 +222,11 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
           </button>
 
           <div className="flex-1 flex flex-col gap-1 min-w-0">
-            <div className="flex justify-between text-[9px] font-black text-white/10 uppercase tracking-[0.3em]">
+            <div className="flex justify-between text-[9px] font-black text-white/45 uppercase tracking-[0.3em] font-mono">
               <span>{formatTime(currentTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>
-            <div ref={containerRef} className="w-full h-8 opacity-60 hover:opacity-100 transition-opacity" />
+            <div ref={containerRef} className="w-full h-8 opacity-70 hover:opacity-100 transition-opacity" />
           </div>
         </div>
 
@@ -235,7 +236,7 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
             <button
               onMouseEnter={() => setShowSpeedMenu(true)}
               onMouseLeave={() => setShowSpeedMenu(false)}
-              className="px-4 py-2 text-[10px] font-black text-white/70 hover:text-white transition-all flex items-center gap-2"
+              className="px-4 py-2 text-[10px] font-black text-white/80 hover:text-white transition-all flex items-center gap-2"
             >
               <FastForward size={14} className="text-primary" />
               {playbackRate}x
@@ -246,10 +247,10 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute bottom-full left-0 mb-2 bg-[#1a1a1c] border border-white/10 rounded-2xl p-2 min-w-[120px] shadow-2xl backdrop-blur-xl z-[110] grid grid-cols-2 gap-1"
+                    className="absolute bottom-full left-0 mb-3 bg-surface-container/90 border border-white/10 rounded-2xl p-2.5 min-w-[130px] shadow-[0_20px_50px_rgba(0,0,0,0.6),_0_0_1px_rgba(186,158,255,0.4)] backdrop-blur-xl z-[110] grid grid-cols-2 gap-1"
                   >
                     <div className="col-span-2 px-2 py-1 mb-1 border-b border-white/5">
-                      <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Playback Speed</span>
+                      <span className="text-[8px] font-black text-white/35 uppercase tracking-widest">Playback Speed</span>
                     </div>
                     {speedOptions.map(rate => (
                       <button
@@ -258,7 +259,7 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
                           setPlaybackRate(rate);
                           setShowSpeedMenu(false);
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all text-left hover:bg-primary/20 ${playbackRate === rate ? 'bg-primary text-white' : 'text-white/40 hover:text-white'}`}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all text-left hover:bg-primary/20 ${playbackRate === rate ? 'bg-primary text-white font-black' : 'text-white/50 hover:text-white'}`}
                       >
                         {rate}x
                       </button>
@@ -270,7 +271,7 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
             <div className="w-px h-4 bg-white/10" />
             <button
               onClick={() => setIsMuted(!isMuted)}
-              className="p-2 text-white/40 hover:text-white transition-all ml-1"
+              className="p-2 text-white/50 hover:text-white transition-all ml-1"
             >
               {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </button>
@@ -278,7 +279,7 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
 
           <button
             onClick={() => setShowTranscript(!showTranscript)}
-            className={`p-3 rounded-xl transition-all border ${showTranscript ? 'bg-primary/20 text-primary border-primary/30' : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10 hover:text-white'}`}
+            className={`p-3 rounded-xl transition-all border ${showTranscript ? 'bg-primary/20 text-primary border-primary/30 shadow-[0_0_15px_rgba(186,158,255,0.15)]' : 'bg-white/5 text-white/50 border-white/5 hover:bg-white/10 hover:text-white'}`}
             title="Toggle Synced Transcript"
           >
             <FileText size={18} />
@@ -287,14 +288,16 @@ const GlobalPlayer = ({ clip, onClear, isPlaying, setIsPlaying, setCurrentTime: 
           <a 
             href={clip.url} 
             download="aura_audio.wav"
-            className="p-3 bg-white/5 text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-white/5"
+            className="p-3 bg-white/5 text-white/50 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-white/5"
+            title="Download audio"
           >
             <Download size={18} />
           </a>
 
           <button
             onClick={onClear}
-            className="p-2 text-white/10 hover:text-red-400 transition-colors"
+            className="p-2 text-white/30 hover:text-red-400 transition-colors"
+            title="Close player"
           >
             <X size={24} />
           </button>
