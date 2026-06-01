@@ -17,6 +17,27 @@ import GlobalPlayer from './components/GlobalPlayer';
 
 const API_BASE = "http://localhost:8000";
 
+const cleanMarkdownForSynthesis = (text) => {
+  if (!text) return "";
+  return text
+    // Remove headers: # Header -> Header
+    .replace(/^#+\s+/gm, '')
+    // Remove blockquote marks: > quote -> quote
+    .replace(/^>\s+/gm, '')
+    // Remove list bullet markers: - item -> item or * item -> item
+    .replace(/^[-*+]\s+/gm, '')
+    // Remove numbered list markers: 1. item -> item
+    .replace(/^\d+\.\s+/gm, '')
+    // Remove bold/italic markers: **bold** or *italic* -> bold / italic
+    .replace(/\*\*|__/g, '')
+    .replace(/\*|_/g, '')
+    // Remove inline code backticks: `code` -> code
+    .replace(/`/g, '')
+    // Remove horizontal rules: --- or *** -> empty
+    .replace(/^[*-]{3,}/gm, '')
+    .trim();
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('Studio');
   const [activeModel, setActiveModel] = useState('xtts');
@@ -81,7 +102,7 @@ export default function App() {
     setLastChunkUrl(null);
 
     const formData = new FormData();
-    formData.append('text', inputText);
+    formData.append('text', cleanMarkdownForSynthesis(inputText));
     formData.append('model_type', activeModel);
     formData.append('reference_id', referenceId);
     formData.append('speed', speed);

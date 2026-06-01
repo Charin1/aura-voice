@@ -30,6 +30,132 @@ const WaveformVisualizer = ({ isActive }) => {
   );
 };
 
+const MarkdownPreview = ({ text }) => {
+  const parseMarkdown = (markdownText) => {
+    if (!markdownText) return [];
+    
+    // Split into paragraphs/blocks by double newlines
+    const blocks = markdownText.split(/\n\n+/);
+    
+    return blocks.map((block, index) => {
+      const trimmedBlock = block.trim();
+      
+      // Horizontal Rule
+      if (trimmedBlock === '---' || trimmedBlock === '***' || trimmedBlock === '___') {
+        return <hr key={index} className="border-white/10 my-6" />;
+      }
+      
+      // Headers
+      if (trimmedBlock.startsWith('# ')) {
+        return (
+          <h1 key={index} className="text-3xl font-black font-headline text-white mt-6 mb-3 tracking-tight border-b border-white/5 pb-2">
+            {renderInline(trimmedBlock.substring(2))}
+          </h1>
+        );
+      }
+      if (trimmedBlock.startsWith('## ')) {
+        return (
+          <h2 key={index} className="text-2xl font-black font-headline text-white mt-5 mb-2.5 tracking-tight">
+            {renderInline(trimmedBlock.substring(3))}
+          </h2>
+        );
+      }
+      if (trimmedBlock.startsWith('### ')) {
+        return (
+          <h3 key={index} className="text-xl font-bold font-headline text-white mt-4 mb-2">
+            {renderInline(trimmedBlock.substring(4))}
+          </h3>
+        );
+      }
+      
+      // Blockquote
+      if (trimmedBlock.startsWith('>')) {
+        const quoteText = trimmedBlock.split('\n').map(line => {
+          const l = line.trim();
+          return l.startsWith('>') ? l.substring(1).trim() : l;
+        }).join('\n');
+        
+        return (
+          <blockquote key={index} className="border-l-4 border-primary/50 bg-white/5 px-4 py-3 rounded-r-xl italic my-4 text-white/80">
+            {renderInline(quoteText)}
+          </blockquote>
+        );
+      }
+      
+      // List (unordered)
+      if (trimmedBlock.startsWith('- ') || trimmedBlock.startsWith('* ')) {
+        const items = trimmedBlock.split('\n').map(line => {
+          const l = line.trim();
+          if (l.startsWith('- ')) return l.substring(2);
+          if (l.startsWith('* ')) return l.substring(2);
+          return l;
+        });
+        return (
+          <ul key={index} className="list-disc pl-6 space-y-1.5 my-3 text-white/80 text-sm">
+            {items.map((item, idx) => (
+              <li key={idx}>{renderInline(item)}</li>
+            ))}
+          </ul>
+        );
+      }
+
+      // List (ordered)
+      if (/^\d+\.\s/.test(trimmedBlock)) {
+        const items = trimmedBlock.split('\n').map(line => {
+          const l = line.trim();
+          const match = l.match(/^\d+\.\s(.*)/);
+          return match ? match[1] : l;
+        });
+        return (
+          <ol key={index} className="list-decimal pl-6 space-y-1.5 my-3 text-white/80 text-sm">
+            {items.map((item, idx) => (
+              <li key={idx}>{renderInline(item)}</li>
+            ))}
+          </ol>
+        );
+      }
+      
+      // Regular paragraph
+      const lines = trimmedBlock.split('\n');
+      return (
+        <p key={index} className="text-sm font-medium text-white/70 leading-relaxed mb-4">
+          {lines.map((line, lineIdx) => (
+            <React.Fragment key={lineIdx}>
+              {renderInline(line)}
+              {lineIdx < lines.length - 1 && <br />}
+            </React.Fragment>
+          ))}
+        </p>
+      );
+    });
+  };
+
+  const renderInline = (inputText) => {
+    let html = inputText;
+    
+    // Simple HTML escaping to avoid rendering raw HTML tags
+    html = html
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    // Replace Bold: **text** or __text__
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+
+    // Replace Italic: *text* or _text_
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+
+    // Replace Inline Code: `text`
+    html = html.replace(/`(.*?)`/g, '<code class="bg-white/10 px-1.5 py-0.5 rounded font-mono text-xs text-primary">$1</code>');
+
+    return <span dangerouslySetInnerHTML={{ __html: html }} />;
+  };
+
+  return <div className="space-y-4">{parseMarkdown(text)}</div>;
+};
+
 export default function Studio({ 
   inputText, 
   setInputText, 
@@ -56,6 +182,7 @@ export default function Studio({
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [editorMode, setEditorMode] = useState('write');
 
   // Prosody and speed controls state
   const [speed, setSpeed] = useState(1.0);
@@ -367,12 +494,39 @@ export default function Studio({
              </div>
 
               <div className="flex flex-col gap-4">
-                <textarea 
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Enter the text for synthesis here..."
-                  className="w-full min-h-[280px] input-glass leading-relaxed resize-none border border-white/5 focus:border-primary/30 transition-all duration-300 placeholder:text-white/40"
-                />
+                 <div className="flex justify-between items-center px-1">
+                   <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+                     <button 
+                       onClick={() => setEditorMode('write')}
+                       className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${editorMode === 'write' ? 'bg-primary/20 text-primary border border-primary/20' : 'text-white/40 hover:text-white/70'}`}
+                     >
+                       Write
+                     </button>
+                     <button 
+                       onClick={() => setEditorMode('preview')}
+                       className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${editorMode === 'preview' ? 'bg-primary/20 text-primary border border-primary/20' : 'text-white/40 hover:text-white/70'}`}
+                     >
+                       Preview
+                     </button>
+                   </div>
+                 </div>
+
+                 {editorMode === 'write' ? (
+                   <textarea 
+                     value={inputText}
+                     onChange={(e) => setInputText(e.target.value)}
+                     placeholder="Enter the text for synthesis here... (Markdown supported)"
+                     className="w-full min-h-[280px] input-glass leading-relaxed resize-none border border-white/5 focus:border-primary/30 transition-all duration-300 placeholder:text-white/40"
+                   />
+                 ) : (
+                   <div className="w-full min-h-[280px] max-h-[400px] overflow-y-auto custom-scrollbar input-glass leading-relaxed border border-white/5 pr-2 select-text">
+                     {inputText ? (
+                       <MarkdownPreview text={inputText} />
+                     ) : (
+                       <span className="text-white/20 italic text-sm">Nothing to preview. Go to 'Write' tab to add your script.</span>
+                     )}
+                   </div>
+                 )}
                 <div className="flex justify-end">
                   <motion.button 
                     whileHover={{ scale: 1.02 }}
